@@ -7,24 +7,38 @@ import { userDataContext } from "../context/userContext";
 
 function Signup() {
   const { serverUrl } = useContext(userDataContext);
-
   const navigate = useNavigate();
 
   const [showPassword, setShowPassword] = useState(false);
+
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
 
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
+
   const handleSignUp = async (e) => {
     e.preventDefault();
+
+    setError("");
+    setLoading(true);
 
     try {
       const result = await axios.post(
         `${serverUrl}/api/auth/signup`,
-        {name,email,password,},
-        {withCredentials: true,}
+        {
+          name: name.trim(),
+          email: email.trim(),
+          password,
+        },
+        {
+          withCredentials: true,
+        }
       );
+
       console.log(result.data);
+
       setName("");
       setEmail("");
       setPassword("");
@@ -32,6 +46,12 @@ function Signup() {
       navigate("/signin");
     } catch (err) {
       console.log(err.response?.data || err.message);
+
+      setError(
+        err.response?.data?.message || "Something went wrong. Please try again."
+      );
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -90,11 +110,18 @@ function Signup() {
           )}
         </div>
 
+        {error && (
+          <p className="text-red-500 text-sm font-medium text-center">
+            * {error}
+          </p>
+        )}
+
         <button
           type="submit"
-          className="w-full h-14 bg-blue-500 hover:bg-blue-600 rounded-full text-white text-lg font-semibold transition"
+          disabled={loading}
+          className="w-full h-14 bg-blue-500 hover:bg-blue-600 disabled:bg-gray-500 disabled:cursor-not-allowed rounded-full text-white text-lg font-semibold transition"
         >
-          Sign Up
+          {loading ? "Signing Up..." : "Sign Up"}
         </button>
 
         <p className="text-white text-lg">

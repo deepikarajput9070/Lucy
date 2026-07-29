@@ -6,7 +6,7 @@ import image from "../assets/peakpx.jpg";
 import { userDataContext } from "../context/userContext";
 
 function SignIn() {
-  const { serverUrl } = useContext(userDataContext);
+  const { serverUrl,userData,setUserData} = useContext(userDataContext);
   const navigate = useNavigate();
 
   const [showPassword, setShowPassword] = useState(false);
@@ -35,7 +35,7 @@ function SignIn() {
         }
       );
 
-      console.log(result.data);
+      setUserData(result.data)
 
       setEmail("");
       setPassword("");
@@ -44,6 +44,7 @@ function SignIn() {
       navigate("/");
 
     } catch (err) {
+      setUserData(null)
       console.log(err.response?.data || err.message);
 
       setError(

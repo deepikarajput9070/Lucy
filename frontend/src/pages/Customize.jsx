@@ -8,6 +8,7 @@ import img3 from "../assets/img2.jpg";
 import img4 from "../assets/img3.jpg";
 import img5 from "../assets/img4.jpg";
 import img6 from "../assets/img5.jpg";
+import { useNavigate } from "react-router-dom";
 
 function Customize() {
   const cards = [
@@ -18,62 +19,70 @@ function Customize() {
     { image: img5, title: "Card 5" },
     { image: img6, title: "Card 6" },
   ];
-
-  // Image shown in the UI
+  // Uploaded image preview
   const [frontImage, setFrontImage] = useState(null);
-
-  // Actual image file for backend
+  // Actual uploaded file
   const [backendImage, setBackendImage] = useState(null);
-
-  // File input reference
+  // Selected image (default or uploaded)
+  const [selectedImage, setSelectedImage] = useState(null);
+  const navigate=useNavigate()
   const inputImage = useRef(null);
-
-  // Handle image upload
+  // Handle upload
   const handleImage = (e) => {
     const file = e.target.files[0];
-
     if (file) {
-      // Store actual file
+      const preview = URL.createObjectURL(file);
       setBackendImage(file);
-
-      // Create preview
-      setFrontImage(URL.createObjectURL(file));
+      setFrontImage(preview);
+      setSelectedImage(preview);
     }
   };
 
+  // Next button
+ const handleNext = () => {
+  
+  navigate("/Customize2");
+};
+
   return (
     <div className="w-full min-h-screen bg-gradient-to-t from-black to-[#060666] flex flex-col items-center py-10">
-
       {/* Heading */}
       <h1 className="text-white text-4xl font-bold text-center mb-10">
         Select your
         <br />
-        <span className="text-blue-400">
-          Assistant Image
-        </span>
+        <span className="text-blue-400">Assistant Image</span>
       </h1>
 
-      {/* Cards Container */}
+      {/* Cards */}
       <div className="w-[90%] max-w-6xl flex flex-wrap justify-center gap-6">
-
-        {/* Default Image Cards */}
         {cards.map((card, index) => (
-          <Card
+          <div
             key={index}
-            image={card.image}
-            title={card.title}
-          />
+            onClick={() => setSelectedImage(card.image)}
+            className={`
+              rounded-2xl
+              cursor-pointer
+              transition-all
+              duration-300
+              ${
+                selectedImage === card.image
+                  ? "border-4 border-blue-500 scale-105 shadow-[0_0_25px_rgba(59,130,246,0.8)]"
+                  : "border-4 border-transparent"
+              }
+            `}
+          >
+            <Card image={card.image} title={card.title} />
+          </div>
         ))}
 
         {/* Upload Card */}
         <div
-          onClick={() => inputImage.current.click()}
-          className="
+          onClick={() => {inputImage.current.click()
+          }}
+          
+          className={`
             w-[180px]
             h-[250px]
-            bg-[#060666]
-            border-2
-            border-blue-500
             rounded-2xl
             flex
             items-center
@@ -82,13 +91,15 @@ function Customize() {
             overflow-hidden
             transition-all
             duration-300
-            hover:border-white
-            hover:shadow-[0_0_30px_rgba(59,130,246,0.9)]
+            bg-[#060666]
             hover:scale-105
-          "
+            ${
+              selectedImage === frontImage
+                ? "border-4 border-blue-500 shadow-[0_0_25px_rgba(59,130,246,0.8)]"
+                : "border-2 border-blue-500"
+            }
+          `}
         >
-
-          {/* Show uploaded image */}
           {frontImage ? (
             <img
               src={frontImage}
@@ -98,46 +109,44 @@ function Customize() {
           ) : (
             <div className="flex flex-col items-center">
               <MdUploadFile className="text-white text-6xl" />
-
               <p className="text-white mt-3 text-sm">
                 Upload Image
               </p>
             </div>
           )}
 
-          {/* Hidden File Input */}
           <input
             type="file"
             accept="image/*"
-            ref={inputImage}
             hidden
+            ref={inputImage}
             onChange={handleImage}
           />
-
         </div>
-
       </div>
 
       {/* Next Button */}
-      <button
-        className="
-          mt-12
-          px-12
-          py-3
-          bg-blue-500
-          hover:bg-blue-600
-          rounded-full
-          text-white
-          text-lg
-          font-semibold
-          transition-all
-          duration-300
-          hover:scale-105
-        "
-      >
-        Next
-      </button>
-
+      {selectedImage && (
+        <button
+          onClick={handleNext}
+          className="
+            mt-12
+            px-12
+            py-3
+            bg-blue-500
+            hover:bg-blue-600
+            rounded-full
+            text-white
+            text-lg
+            font-semibold
+            transition-all
+            duration-300
+            hover:scale-105
+          "
+        >
+          Next
+        </button>
+      )}
     </div>
   );
 }

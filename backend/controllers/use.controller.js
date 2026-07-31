@@ -15,3 +15,25 @@ export const getCurrentUser=async (req,res)=>
         return res.status(400).json({message:"get current user error"})
     }
 }
+
+export const updateAssistant=async (req,res)=>{
+    try{
+        const {assistantName,imageUrl}=req.body
+        const assistantImage;
+        
+        if(req.file)
+        {
+            assistantImage=await uploadOnCloudinary(req.file.path)
+        }else{
+            assistantImage=imageUrl
+        }
+        const user=await user.findByIdUpdate(req.userId,{
+            assistantImage,assistantName
+        },{new:true}.select("-password"))
+        return res.status(200).json(user);
+
+    }catch(err)
+    {
+        
+    }
+}

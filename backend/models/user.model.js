@@ -17,6 +17,16 @@ const userSchema = new mongoose.Schema(
       type: String,
       required: true,
     },
+
+    assistantName: {
+      type: String,
+      default: "",
+    },
+
+    assistantImage: {
+      type: String,
+      default: "",
+    },
   },
   {
     timestamps: true,

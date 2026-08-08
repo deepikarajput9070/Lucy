@@ -27,6 +27,28 @@ const userSchema = new mongoose.Schema(
       type: String,
       default: "",
     },
+
+    conversationHistory: {
+      type: [
+        {
+          user: {
+            type: String,
+            default: "",
+          },
+
+          assistant: {
+            type: String,
+            default: "",
+          },
+
+          timestamp: {
+            type: Date,
+            default: Date.now,
+          },
+        },
+      ],
+      default: [],
+    },
   },
   {
     timestamps: true,

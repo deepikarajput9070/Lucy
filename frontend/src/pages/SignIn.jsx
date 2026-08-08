@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { IoEye, IoEyeOff } from "react-icons/io5";
 import axios from "axios";
 import image from "../assets/peakpx.jpg";
-import { userDataContext } from "../context/userContext";
+import { userDataContext } from "../context/UserContext";
 
 function SignIn() {
   const { serverUrl,userData,setUserData} = useContext(userDataContext);

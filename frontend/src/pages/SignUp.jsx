@@ -3,10 +3,11 @@ import { useNavigate } from "react-router-dom";
 import { IoEye, IoEyeOff } from "react-icons/io5";
 import axios from "axios";
 import image from "../assets/peakpx.jpg";
-import { userDataContext } from "../context/userContext";
+import { userDataContext } from "../context/UserContext";
 
 function Signup() {
-  const { serverUrl,userData,setUserData} = useContext(userDataContext);
+  const { serverUrl, userData, setUserData } = useContext(userDataContext);
+
   const navigate = useNavigate();
 
   const [showPassword, setShowPassword] = useState(false);
@@ -37,7 +38,7 @@ function Signup() {
         }
       );
 
-      setUserData(result.data)
+      setUserData(result.data);
 
       setName("");
       setEmail("");
@@ -45,11 +46,13 @@ function Signup() {
 
       navigate("/customize");
     } catch (err) {
-      setUserData(null)
+      setUserData(null);
+
       console.log(err.response?.data || err.message);
 
       setError(
-        err.response?.data?.message || "Something went wrong. Please try again."
+        err.response?.data?.message ||
+          "Something went wrong. Please try again."
       );
     } finally {
       setLoading(false);

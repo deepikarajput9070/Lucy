@@ -1,1057 +1,1125 @@
 import React, {
+  useCallback,
   useContext,
   useEffect,
   useRef,
   useState,
 } from "react";
 
-import { userDataContext } from "../context/UserContext";
-import { useNavigate } from "react-router-dom";
 import axios from "axios";
+import { useNavigate } from "react-router-dom";
+
+import {
+  IoMic,
+  IoMicOff,
+  IoSend,
+  IoLogOutOutline,
+  IoVolumeHigh,
+  IoVolumeMute,
+} from "react-icons/io5";
+
+import {
+  FaPause,
+  FaPlay,
+  FaTimes,
+} from "react-icons/fa";
+
+import {
+  userDataContext,
+} from "../context/UserContext.jsx";
+
+// ============================================================
+// HOME
+// ============================================================
 
 function Home() {
+  const {
+    serverUrl,
+    userData,
+    setUserData,
+  } = useContext(userDataContext);
+
   const navigate = useNavigate();
 
-  const { userData, serverUrl, setUserData } =
-    useContext(userDataContext);
-
-  // =========================
+  // ==========================================================
   // STATE
-  // =========================
+  // ==========================================================
 
-  const [youtubeVideoId, setYoutubeVideoId] = useState(null);
-  const [youtubeTitle, setYoutubeTitle] = useState("");
-  const [youtubePlaying, setYoutubePlaying] = useState(false);
+  const [input, setInput] = useState("");
+  const [messages, setMessages] = useState([]);
 
-  const [imageResults, setImageResults] = useState([]);
-  const [imageQuery, setImageQuery] = useState("");
+  const [isListening, setIsListening] =
+    useState(false);
 
-  const [isListening, setIsListening] = useState(false);
-  const [isProcessing, setIsProcessing] = useState(false);
-  const [isSpeaking, setIsSpeaking] = useState(false);
+  const [isSpeaking, setIsSpeaking] =
+    useState(false);
 
-  // =========================
+  const [isLoading, setIsLoading] =
+    useState(false);
+
+  const [isMuted, setIsMuted] =
+    useState(false);
+
+  const [isLoggingOut, setIsLoggingOut] =
+    useState(false);
+
+  const [images, setImages] =
+    useState([]);
+
+  const [showImages, setShowImages] =
+    useState(false);
+
+  const [listItems, setListItems] =
+    useState([]);
+
+  const [listTitle, setListTitle] =
+    useState("");
+
+  const [showList, setShowList] =
+    useState(false);
+
+  const [youtubeVideo, setYoutubeVideo] =
+    useState(null);
+
+  const [youtubeTitle, setYoutubeTitle] =
+    useState("");
+
+  const [youtubePlaying, setYoutubePlaying] =
+    useState(false);
+
+  // ==========================================================
   // REFS
-  // =========================
+  // ==========================================================
 
-  const playerRef = useRef(null);
-  const playerContainerRef = useRef(null);
+  const recognitionRef =
+    useRef(null);
 
-  const recognitionRef = useRef(null);
+  const messagesEndRef =
+    useRef(null);
 
-  const recognitionRunningRef = useRef(false);
-  const recognitionStartingRef = useRef(false);
+  const youtubeIframeRef =
+    useRef(null);
 
-  const processingCommandRef = useRef(false);
+  const speechVoicesRef =
+    useRef([]);
 
-  const isSpeakingRef = useRef(false);
+  // ==========================================================
+  // MIC CONTROL REFS
+  // ==========================================================
 
-  const mountedRef = useRef(false);
+  const shouldListenRef =
+    useRef(true);
 
-  const shouldContinueRef = useRef(true);
+  const recognitionRunningRef =
+    useRef(false);
 
-  const restartTimerRef = useRef(null);
+  const restartingRecognitionRef =
+    useRef(false);
 
-  const youtubeVideoIdRef = useRef(null);
+  const isSpeakingRef =
+    useRef(false);
 
-  const youtubePlayingRef = useRef(false);
+  const isLoadingRef =
+    useRef(false);
 
-  const playerReadyRef = useRef(false);
+  const manualMicChangeRef =
+    useRef(false);
 
-  const mediaModeRef = useRef(false);
+  const isLoggingOutRef =
+    useRef(false);
 
-  // =========================
-  // NORMALIZE COMMAND
-  // =========================
+  // Prevent duplicate voice commands.
+  const lastTranscriptRef =
+    useRef("");
 
-  const normalizeCommand = (text = "") => {
-    return text
-      .toLowerCase()
-      .replace(/[.,!?]/g, "")
-      .replace(/\s+/g, " ")
-      .trim();
-  };
+  const lastTranscriptTimeRef =
+    useRef(0);
 
-  // =========================
-  // GROQ REQUEST
-  // =========================
+  // ==========================================================
+  // ASSISTANT DATA
+  // ==========================================================
 
-  const getGroqResponse = async (command) => {
-    try {
-      const result = await axios.post(
-        `${serverUrl}/api/user/asktoassistant`,
-        {
-          command,
-        },
-        {
-          withCredentials: true,
-        }
-      );
+  const assistantName =
+    userData?.assistantName ||
+    "Lucy";
 
-      return result.data;
-    } catch {
-      return null;
-    }
-  };
+  const assistantImage =
+    userData?.assistantImage ||
+    "";
 
-  // =========================
-  // RESTART TIMER
-  // =========================
-
-  const clearRestartTimer = () => {
-    if (restartTimerRef.current) {
-      clearTimeout(restartTimerRef.current);
-      restartTimerRef.current = null;
-    }
-  };
-
-  // =========================
-  // STOP RECOGNITION
-  // =========================
-
-  const stopRecognition = () => {
-    clearRestartTimer();
-
-    recognitionStartingRef.current = false;
-
-    const recognition = recognitionRef.current;
-
-    if (!recognition) return;
-
-    if (recognitionRunningRef.current) {
-      try {
-        recognition.stop();
-      } catch {}
-    }
-  };
-
-  // =========================
-  // START RECOGNITION
-  // =========================
-
-  const startRecognition = () => {
-    const recognition = recognitionRef.current;
-
-    if (!recognition) return;
-
-    if (!mountedRef.current) return;
-
-    if (!shouldContinueRef.current) return;
-
-    if (isSpeakingRef.current) return;
-
-    if (processingCommandRef.current) return;
-
-    if (mediaModeRef.current) return;
-
-    if (recognitionRunningRef.current) return;
-
-    if (recognitionStartingRef.current) return;
-
-    recognitionStartingRef.current = true;
-
-    try {
-      recognition.start();
-    } catch {
-      recognitionStartingRef.current = false;
-    }
-  };
-
-  // =========================
-  // RESTART RECOGNITION
-  // =========================
-
-  const restartRecognition = (delay = 700) => {
-    if (!mountedRef.current) return;
-
-    if (!shouldContinueRef.current) return;
-
-    if (isSpeakingRef.current) return;
-
-    if (processingCommandRef.current) return;
-
-    if (mediaModeRef.current) return;
-
-    clearRestartTimer();
-
-    restartTimerRef.current = setTimeout(() => {
-      restartTimerRef.current = null;
-
-      startRecognition();
-    }, delay);
-  };
-
-  // =========================
-  // FEMALE VOICE
-  // =========================
-
-  const getFemaleVoice = () => {
-    const voices = window.speechSynthesis.getVoices();
-
-    if (!voices.length) return null;
-
-    const preferred = [
-      "Microsoft Zira",
-      "Microsoft Jenny",
-      "Google US English",
-      "Samantha",
-      "Karen",
-      "Victoria",
-      "Google UK English Female",
-      "Aria",
-    ];
-
-    for (const name of preferred) {
-      const voice = voices.find((v) =>
-        v.name.toLowerCase().includes(name.toLowerCase())
-      );
-
-      if (voice) return voice;
-    }
-
-    return (
-      voices.find((v) => v.lang === "en-US") ||
-      voices.find((v) => v.lang.startsWith("en")) ||
-      voices[0]
-    );
-  };
-
-  // =========================
-  // SPEAK RESPONSE
-  // =========================
-
-  const speakResponse = (text) => {
-    if (!text) {
-      processingCommandRef.current = false;
-      setIsProcessing(false);
-
-      if (!mediaModeRef.current) {
-        restartRecognition(700);
-      }
-
-      return;
-    }
-
-    isSpeakingRef.current = true;
-
-    setIsSpeaking(true);
-
-    stopRecognition();
-
-    window.speechSynthesis.cancel();
-
-    const speech = new SpeechSynthesisUtterance(text);
-
-    const voice = getFemaleVoice();
-
-    if (voice) {
-      speech.voice = voice;
-    }
-
-    speech.lang = "en-US";
-    speech.rate = 0.92;
-    speech.pitch = 1.08;
-    speech.volume = 1;
-
-    speech.onend = () => {
-      isSpeakingRef.current = false;
-
-      setIsSpeaking(false);
-
-      processingCommandRef.current = false;
-
-      setIsProcessing(false);
-
-      if (!mediaModeRef.current) {
-        restartRecognition(800);
-      }
-    };
-
-    speech.onerror = () => {
-      isSpeakingRef.current = false;
-
-      setIsSpeaking(false);
-
-      processingCommandRef.current = false;
-
-      setIsProcessing(false);
-
-      if (!mediaModeRef.current) {
-        restartRecognition(800);
-      }
-    };
-
-    window.speechSynthesis.speak(speech);
-  };
-
-  // =========================
-  // PLAY YOUTUBE
-  // =========================
-
-  const playVideo = () => {
-    const player = playerRef.current;
-
-    if (
-      player &&
-      playerReadyRef.current &&
-      typeof player.playVideo === "function"
-    ) {
-      try {
-        player.playVideo();
-
-        youtubePlayingRef.current = true;
-        setYoutubePlaying(true);
-
-        mediaModeRef.current = true;
-
-        stopRecognition();
-      } catch {}
-    }
-  };
-
-  // =========================
-  // PAUSE YOUTUBE
-  // =========================
-
-  const pauseVideo = () => {
-    const player = playerRef.current;
-
-    if (
-      player &&
-      playerReadyRef.current &&
-      typeof player.pauseVideo === "function"
-    ) {
-      try {
-        player.pauseVideo();
-
-        youtubePlayingRef.current = false;
-        setYoutubePlaying(false);
-
-        mediaModeRef.current = true;
-
-        stopRecognition();
-      } catch {}
-    }
-  };
-
-  // =========================
-  // STOP YOUTUBE
-  // =========================
-
-  const stopVideo = () => {
-    const player = playerRef.current;
-
-    if (
-      player &&
-      playerReadyRef.current &&
-      typeof player.stopVideo === "function"
-    ) {
-      try {
-        player.stopVideo();
-
-        youtubePlayingRef.current = false;
-        setYoutubePlaying(false);
-      } catch {}
-    }
-  };
-
-  // =========================
-  // CLOSE YOUTUBE
-  // =========================
-
-  const closeVideo = () => {
-    stopRecognition();
-
-    mediaModeRef.current = false;
-
-    playerReadyRef.current = false;
-
-    youtubePlayingRef.current = false;
-
-    setYoutubePlaying(false);
-
-    if (playerRef.current) {
-      try {
-        playerRef.current.stopVideo();
-      } catch {}
-
-      try {
-        playerRef.current.destroy();
-      } catch {}
-
-      playerRef.current = null;
-    }
-
-    youtubeVideoIdRef.current = null;
-
-    setYoutubeVideoId(null);
-
-    setYoutubeTitle("");
-
-    processingCommandRef.current = false;
-
-    setIsProcessing(false);
-
-    if (!isSpeakingRef.current) {
-      restartRecognition(800);
-    }
-  };
-
-  // =========================
-  // CLOSE IMAGES
-  // =========================
-
-  const closeImages = () => {
-    setImageResults([]);
-
-    setImageQuery("");
-
-    processingCommandRef.current = false;
-
-    setIsProcessing(false);
-
-    if (!isSpeakingRef.current) {
-      restartRecognition(500);
-    }
-  };
-
-  // =========================
-  // IMAGE COMMAND
-  // =========================
-
-  const isCloseImageCommand = (command) => {
-    const c = normalizeCommand(command);
-
-    return (
-      c === "close images" ||
-      c === "close image" ||
-      c === "close image results" ||
-      c === "close the images" ||
-      c === "close the image results" ||
-      c === "close pictures" ||
-      c === "close photos" ||
-      c === "hide images" ||
-      c === "hide image results" ||
-      c === "close them"
-    );
-  };
-
-  // =========================
-  // YOUTUBE CLOSE COMMAND
-  // =========================
-
-  const isCloseYoutubeCommand = (command) => {
-    const c = normalizeCommand(command);
-
-    return (
-      c === "close youtube" ||
-      c === "close the youtube" ||
-      c === "exit youtube" ||
-      c === "close video" ||
-      c === "close music" ||
-      c === "close song" ||
-      c === "stop youtube" ||
-      c === "close player"
-    );
-  };
-
-  // =========================
-  // PAUSE COMMAND
-  // =========================
-
-  const isPauseCommand = (command) => {
-    const c = normalizeCommand(command);
-
-    return [
-      "pause",
-      "pause music",
-      "pause song",
-      "pause video",
-      "pause youtube",
-      "pause the music",
-      "pause the video",
-      "pause it",
-    ].includes(c);
-  };
-
-  // =========================
-  // PLAY COMMAND
-  // =========================
-
-  const isPlayCommand = (command) => {
-    const c = normalizeCommand(command);
-
-    return [
-      "play",
-      "resume",
-      "continue",
-      "play music",
-      "play song",
-      "play video",
-      "play youtube",
-      "resume music",
-      "resume video",
-      "continue music",
-      "resume it",
-      "play it",
-    ].includes(c);
-  };
-
-  // =========================
-  // STOP COMMAND
-  // =========================
-
-  const isStopCommand = (command) => {
-    const c = normalizeCommand(command);
-
-    return [
-      "stop",
-      "stop music",
-      "stop song",
-      "stop video",
-      "stop youtube",
-      "stop it",
-    ].includes(c);
-  };
-
-  // =========================
-  // LOCAL MEDIA COMMAND
-  // =========================
-
-  const handleLocalMediaCommand = (command) => {
-    if (isCloseImageCommand(command)) {
-      if (imageResults.length > 0) {
-        closeImages();
-
-        speakResponse("Closing the image results.");
-      } else {
-        speakResponse("There are no image results open.");
-      }
-
-      return true;
-    }
-
-    if (isCloseYoutubeCommand(command)) {
-      if (youtubeVideoIdRef.current) {
-        closeVideo();
-
-        speakResponse("YouTube closed.");
-      } else {
-        speakResponse("YouTube is not open.");
-      }
-
-      return true;
-    }
-
-    if (youtubeVideoIdRef.current) {
-      if (isPauseCommand(command)) {
-        pauseVideo();
-
-        speakResponse("Paused.");
-
-        return true;
-      }
-
-      if (isPlayCommand(command)) {
-        playVideo();
-
-        speakResponse("Playing.");
-
-        return true;
-      }
-
-      if (isStopCommand(command)) {
-        stopVideo();
-
-        speakResponse("Stopped.");
-
-        return true;
-      }
-    }
-
-    return false;
-  };
-
-  // =========================
-  // EXTRACT YOUTUBE ID
-  // =========================
-
-  const extractVideoId = (response) => {
-    if (response?.videoId) {
-      return response.videoId;
-    }
-
-    if (!response?.url) {
-      return null;
-    }
-
-    const match = response.url.match(
-      /(?:youtube\.com\/watch\?v=|youtu\.be\/)([^&?/]+)/
-    );
-
-    return match?.[1] || null;
-  };
-
-  // =========================
-  // HANDLE ASSISTANT RESPONSE
-  // =========================
-
-  const handleAssistantResponse = async (response) => {
-    if (!response) return;
-
-    let textToSpeak = "";
-
-    if (typeof response === "string") {
-      textToSpeak = response;
-    } else if (response.response) {
-      textToSpeak = response.response;
-    }
-
-    // =========================
-    // IMAGE SEARCH
-    // =========================
-
-    if (response.type === "image_search") {
-      const images = Array.isArray(response.images)
-        ? response.images
-        : [];
-
-      setImageResults(images);
-
-      setImageQuery(
-        response.query ||
-          response.userInput ||
-          ""
-      );
-
-      if (textToSpeak) {
-        speakResponse(textToSpeak);
-      } else {
-        processingCommandRef.current = false;
-
-        setIsProcessing(false);
-
-        restartRecognition(700);
-      }
-
-      return;
-    }
-
-    // =========================
-    // YOUTUBE
-    // =========================
-
-    if (response.type === "youtube_play") {
-      const videoId = extractVideoId(response);
-
-      if (videoId) {
-        stopRecognition();
-
-        mediaModeRef.current = true;
-
-        playerReadyRef.current = false;
-
-        youtubePlayingRef.current = false;
-
-        setYoutubePlaying(false);
-
-        setYoutubeVideoId(videoId);
-
-        youtubeVideoIdRef.current = videoId;
-
-        setYoutubeTitle(
-          response.response ||
-            response.userInput ||
-            "YouTube"
-        );
-
-        setImageResults([]);
-
-        setImageQuery("");
-
-        if (textToSpeak) {
-          speakResponse(textToSpeak);
-        }
-
-        return;
-      }
-    }
-
-    // =========================
-    // GOOGLE SEARCH
-    // =========================
-
-    if (
-      response.type === "google_search" &&
-      response.url
-    ) {
-      window.open(
-        response.url,
-        "_blank",
-        "noopener,noreferrer"
-      );
-
-      speakResponse(textToSpeak || "Searching.");
-
-      return;
-    }
-
-    // =========================
-    // OTHER LINKS
-    // =========================
-
-    if (
-      response.url &&
-      [
-        "weather_show",
-        "calculator_open",
-        "instagram_open",
-        "facebook_open",
-      ].includes(response.type)
-    ) {
-      window.open(
-        response.url,
-        "_blank",
-        "noopener,noreferrer"
-      );
-
-      speakResponse(textToSpeak || "Done.");
-
-      return;
-    }
-
-    // =========================
-    // NORMAL RESPONSE
-    // =========================
-
-    if (textToSpeak) {
-      speakResponse(textToSpeak);
-    } else {
-      processingCommandRef.current = false;
-
-      setIsProcessing(false);
-
-      restartRecognition(700);
-    }
-  };
-
-  // =========================
-  // HANDLE COMMAND
-  // =========================
-
-  const handleCommand = async (transcript) => {
-    if (!transcript) return;
-
-    const normalized = normalizeCommand(transcript);
-
-    const assistantName = (
-      userData?.assistantName || "Lucy"
-    ).toLowerCase();
-
-    let command = normalized;
-
-    // User only says Lucy
-    if (command === assistantName) {
-      speakResponse(
-        "Yes? What would you like me to do?"
-      );
-
-      return;
-    }
-
-    // Lucy + command
-    if (
-      command.startsWith(
-        assistantName + " "
-      )
-    ) {
-      command = command
-        .substring(assistantName.length)
-        .trim();
-    } else if (
-      command.startsWith("lucy ")
-    ) {
-      command = command
-        .substring(5)
-        .trim();
-    }
-
-    // =========================
-    // LOCAL COMMANDS
-    // =========================
-
-    const localHandled =
-      handleLocalMediaCommand(command);
-
-    if (localHandled) {
-      processingCommandRef.current = false;
-
-      setIsProcessing(false);
-
-      return;
-    }
-
-    // =========================
-    // GROQ
-    // =========================
-
-    const response =
-      await getGroqResponse(command);
-
-    if (!response) {
-      processingCommandRef.current = false;
-
-      setIsProcessing(false);
-
-      speakResponse(
-        "I'm having trouble connecting right now."
-      );
-
-      return;
-    }
-
-    await handleAssistantResponse(response);
-  };
-
-  // =====================================================
-  // YOUTUBE IFRAME API
-  // =====================================================
+  // ==========================================================
+  // KEEP LOADING REF IN SYNC
+  // ==========================================================
 
   useEffect(() => {
-    if (!youtubeVideoId) {
+    isLoadingRef.current =
+      isLoading;
+  }, [isLoading]);
+
+  // ==========================================================
+  // SCROLL CHAT
+  // ==========================================================
+
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({
+      behavior: "smooth",
+    });
+  }, [messages]);
+
+  // ==========================================================
+  // LOAD BROWSER VOICES
+  // ==========================================================
+
+  useEffect(() => {
+    if (
+      typeof window === "undefined" ||
+      !window.speechSynthesis
+    ) {
       return;
     }
 
-    let cancelled = false;
-
-    const createPlayer = () => {
-      if (cancelled) return;
-
-      if (!window.YT || !window.YT.Player) {
-        return;
-      }
-
-      if (!playerContainerRef.current) {
-        return;
-      }
-
-      // Destroy previous player
-      if (playerRef.current) {
-        try {
-          playerRef.current.destroy();
-        } catch {}
-
-        playerRef.current = null;
-      }
-
-      playerReadyRef.current = false;
-
-      // IMPORTANT:
-      // Explicitly tell YouTube that our parent origin
-      // is localhost:5173.
-      const origin = window.location.origin;
-
-      playerRef.current =
-        new window.YT.Player(
-          playerContainerRef.current,
-          {
-            videoId: youtubeVideoId,
-
-            host: "https://www.youtube.com",
-
-            playerVars: {
-              autoplay: 1,
-              controls: 1,
-              rel: 0,
-              modestbranding: 1,
-              playsinline: 1,
-              fs: 1,
-
-              // IMPORTANT FIX
-              enablejsapi: 1,
-              origin: origin,
-            },
-
-            events: {
-              onReady: (event) => {
-                if (cancelled) return;
-
-                playerReadyRef.current = true;
-
-                mediaModeRef.current = true;
-
-                stopRecognition();
-
-                try {
-                  event.target.setVolume(100);
-
-                  event.target.playVideo();
-
-                  youtubePlayingRef.current = true;
-
-                  setYoutubePlaying(true);
-                } catch {}
-              },
-
-              onStateChange: (event) => {
-                if (cancelled) return;
-
-                if (!window.YT?.PlayerState) {
-                  return;
-                }
-
-                const states =
-                  window.YT.PlayerState;
-
-                // PLAYING
-                if (
-                  event.data ===
-                  states.PLAYING
-                ) {
-                  youtubePlayingRef.current = true;
-
-                  setYoutubePlaying(true);
-
-                  mediaModeRef.current = true;
-
-                  stopRecognition();
-                }
-
-                // PAUSED
-                if (
-                  event.data ===
-                  states.PAUSED
-                ) {
-                  youtubePlayingRef.current = false;
-
-                  setYoutubePlaying(false);
-
-                  // Keep media mode active.
-                  // User can press Activate Lucy.
-                  mediaModeRef.current = true;
-
-                  stopRecognition();
-                }
-
-                // ENDED
-                if (
-                  event.data ===
-                  states.ENDED
-                ) {
-                  youtubePlayingRef.current = false;
-
-                  setYoutubePlaying(false);
-
-                  mediaModeRef.current = false;
-
-                  restartRecognition(800);
-                }
-              },
-
-              onError: () => {
-                playerReadyRef.current = false;
-
-                youtubePlayingRef.current = false;
-
-                setYoutubePlaying(false);
-
-                mediaModeRef.current = false;
-
-                restartRecognition(800);
-              },
-            },
-          }
-        );
+    const loadVoices = () => {
+      speechVoicesRef.current =
+        window.speechSynthesis.getVoices();
     };
 
-    // If API is already loaded
-    if (
-      window.YT &&
-      window.YT.Player
-    ) {
-      const timer = setTimeout(() => {
-        createPlayer();
-      }, 100);
+    loadVoices();
 
-      return () => {
-        cancelled = true;
-
-        clearTimeout(timer);
-      };
-    }
-
-    // Check whether script already exists
-    const existingScript =
-      document.querySelector(
-        'script[src="https://www.youtube.com/iframe_api"]'
-      );
-
-    // Save previous callback
-    const previousCallback =
-      window.onYouTubeIframeAPIReady;
-
-    // Create our callback
-    window.onYouTubeIframeAPIReady = () => {
-      if (
-        typeof previousCallback ===
-        "function"
-      ) {
-        try {
-          previousCallback();
-        } catch {}
-      }
-
-      createPlayer();
-    };
-
-    // Load API only once
-    if (!existingScript) {
-      const script =
-        document.createElement("script");
-
-      script.src =
-        "https://www.youtube.com/iframe_api";
-
-      script.async = true;
-
-      document.body.appendChild(script);
-    }
+    window.speechSynthesis.onvoiceschanged =
+      loadVoices;
 
     return () => {
-      cancelled = true;
+      window.speechSynthesis.onvoiceschanged =
+        null;
+    };
+  }, []);
 
-      // Restore previous callback
-      window.onYouTubeIframeAPIReady =
-        previousCallback;
+  // ==========================================================
+  // FIND BEST FEMALE VOICE
+  // ==========================================================
 
-      playerReadyRef.current = false;
+  const getBestVoice =
+    useCallback(() => {
+      if (
+        typeof window === "undefined" ||
+        !window.speechSynthesis
+      ) {
+        return null;
+      }
 
-      if (playerRef.current) {
+      const voices =
+        speechVoicesRef.current.length
+          ? speechVoicesRef.current
+          : window.speechSynthesis.getVoices();
+
+      if (!voices.length) {
+        return null;
+      }
+
+      const preferredNames = [
+        "Microsoft Jenny",
+        "Microsoft Aria",
+        "Microsoft Zira",
+        "Google UK English Female",
+        "Google US English Female",
+        "Samantha",
+        "Karen",
+        "Moira",
+        "Tessa",
+        "Victoria",
+        "Veena",
+        "Aditi",
+      ];
+
+      for (
+        const preferredName of preferredNames
+      ) {
+        const found =
+          voices.find((voice) =>
+            voice.name
+              .toLowerCase()
+              .includes(
+                preferredName.toLowerCase()
+              )
+          );
+
+        if (found) {
+          return found;
+        }
+      }
+
+      const femaleVoice =
+        voices.find((voice) =>
+          /female|jenny|aria|zira|samantha|karen|moira|tessa|victoria|veena|aditi/i.test(
+            voice.name
+          )
+        );
+
+      if (femaleVoice) {
+        return femaleVoice;
+      }
+
+      const indianEnglishVoice =
+        voices.find(
+          (voice) =>
+            /en-IN/i.test(
+              voice.lang
+            )
+        );
+
+      if (indianEnglishVoice) {
+        return indianEnglishVoice;
+      }
+
+      const englishVoice =
+        voices.find(
+          (voice) =>
+            /^en(-|_)/i.test(
+              voice.lang
+            )
+        );
+
+      return (
+        englishVoice ||
+        voices[0]
+      );
+    }, []);
+
+  // ==========================================================
+  // STOP RECOGNITION
+  // ==========================================================
+
+  const stopRecognition =
+    useCallback(() => {
+      const recognition =
+        recognitionRef.current;
+
+      if (!recognition) {
+        return;
+      }
+
+      recognitionRunningRef.current =
+        false;
+
+      try {
+        recognition.abort();
+      } catch {
+        // Ignore.
+      }
+
+      setIsListening(false);
+    }, []);
+
+  // ==========================================================
+  // START RECOGNITION
+  // ==========================================================
+
+  const startRecognition =
+    useCallback(() => {
+      const recognition =
+        recognitionRef.current;
+
+      if (!recognition) {
+        return;
+      }
+
+      if (
+        !shouldListenRef.current ||
+        isSpeakingRef.current ||
+        isLoggingOutRef.current
+      ) {
+        return;
+      }
+
+      if (
+        recognitionRunningRef.current ||
+        restartingRecognitionRef.current
+      ) {
+        return;
+      }
+
+      restartingRecognitionRef.current =
+        true;
+
+      try {
+        recognition.start();
+
+        recognitionRunningRef.current =
+          true;
+      } catch {
+        // Already running.
+      }
+
+      setTimeout(() => {
+        restartingRecognitionRef.current =
+          false;
+      }, 300);
+    }, []);
+
+  // ==========================================================
+  // SPEAK
+  // ==========================================================
+
+  const speak =
+    useCallback(
+      (text) => {
+        if (
+          isMuted ||
+          !text ||
+          typeof window === "undefined" ||
+          !window.speechSynthesis
+        ) {
+          return;
+        }
+
+        const cleanText =
+          String(text)
+            .replace(
+              /[*_#`]/g,
+              ""
+            )
+            .replace(
+              /\s+/g,
+              " "
+            )
+            .trim();
+
+        if (!cleanText) {
+          return;
+        }
+
+        window.speechSynthesis.cancel();
+
+        isSpeakingRef.current =
+          true;
+
+        stopRecognition();
+
+        const utterance =
+          new SpeechSynthesisUtterance(
+            cleanText
+          );
+
+        const voice =
+          getBestVoice();
+
+        if (voice) {
+          utterance.voice =
+            voice;
+        }
+
+        // ====================================================
+        // LUCY VOICE SETTINGS
+        // ====================================================
+
+        utterance.rate = 0.88;
+        utterance.pitch = 1.20;
+        utterance.volume = 0.95;
+
+        utterance.onstart = () => {
+          isSpeakingRef.current =
+            true;
+
+          setIsSpeaking(true);
+        };
+
+        utterance.onend = () => {
+          isSpeakingRef.current =
+            false;
+
+          setIsSpeaking(false);
+
+          if (
+            shouldListenRef.current &&
+            !isMuted &&
+            !isLoggingOutRef.current
+          ) {
+            setTimeout(() => {
+              startRecognition();
+            }, 400);
+          }
+        };
+
+        utterance.onerror = () => {
+          isSpeakingRef.current =
+            false;
+
+          setIsSpeaking(false);
+
+          if (
+            shouldListenRef.current &&
+            !isMuted &&
+            !isLoggingOutRef.current
+          ) {
+            setTimeout(() => {
+              startRecognition();
+            }, 400);
+          }
+        };
+
+        window.speechSynthesis.speak(
+          utterance
+        );
+      },
+      [
+        getBestVoice,
+        isMuted,
+        startRecognition,
+        stopRecognition,
+      ]
+    );
+
+  // ==========================================================
+  // STOP SPEAKING
+  // ==========================================================
+
+  const stopSpeaking =
+    useCallback(() => {
+      if (
+        typeof window !== "undefined" &&
+        window.speechSynthesis
+      ) {
+        window.speechSynthesis.cancel();
+      }
+
+      isSpeakingRef.current =
+        false;
+
+      setIsSpeaking(false);
+
+      if (
+        shouldListenRef.current &&
+        !isMuted &&
+        !isLoggingOutRef.current
+      ) {
+        setTimeout(() => {
+          startRecognition();
+        }, 250);
+      }
+    }, [
+      isMuted,
+      startRecognition,
+    ]);
+
+  // ==========================================================
+  // YOUTUBE COMMAND
+  // ==========================================================
+
+  const sendYouTubeCommand =
+    useCallback(
+      (command) => {
+        const iframe =
+          youtubeIframeRef.current;
+
+        if (!iframe) {
+          return;
+        }
+
+        iframe.contentWindow?.postMessage(
+          JSON.stringify({
+            event: "command",
+            func: command,
+            args: [],
+          }),
+          "*"
+        );
+      },
+      []
+    );
+
+  // ==========================================================
+  // PAUSE YOUTUBE
+  // ==========================================================
+
+  const pauseYouTube =
+    useCallback(() => {
+      if (!youtubeVideo) {
+        return false;
+      }
+
+      sendYouTubeCommand(
+        "pauseVideo"
+      );
+
+      setYoutubePlaying(false);
+
+      return true;
+    }, [
+      sendYouTubeCommand,
+      youtubeVideo,
+    ]);
+
+  // ==========================================================
+  // RESUME YOUTUBE
+  // ==========================================================
+
+  const resumeYouTube =
+    useCallback(() => {
+      if (!youtubeVideo) {
+        return false;
+      }
+
+      sendYouTubeCommand(
+        "playVideo"
+      );
+
+      setYoutubePlaying(true);
+
+      return true;
+    }, [
+      sendYouTubeCommand,
+      youtubeVideo,
+    ]);
+
+  // ==========================================================
+  // CLOSE YOUTUBE
+  // ==========================================================
+
+  const closeYouTube =
+    useCallback(() => {
+      if (!youtubeVideo) {
+        return false;
+      }
+
+      sendYouTubeCommand(
+        "stopVideo"
+      );
+
+      setYoutubeVideo(null);
+      setYoutubeTitle("");
+      setYoutubePlaying(false);
+
+      return true;
+    }, [
+      sendYouTubeCommand,
+      youtubeVideo,
+    ]);
+
+  // ==========================================================
+  // OPEN YOUTUBE
+  // ==========================================================
+
+  const openYouTube =
+    useCallback((data) => {
+      if (!data?.videoId) {
+        return;
+      }
+
+      setYoutubeVideo(
+        data.videoId
+      );
+
+      setYoutubeTitle(
+        data.title ||
+          "YouTube Video"
+      );
+
+      setYoutubePlaying(true);
+    }, []);
+
+  // ==========================================================
+  // LOCAL YOUTUBE COMMAND DETECTION
+  // ==========================================================
+
+  const handleLocalYouTubeCommand =
+    useCallback(
+      (command) => {
+        const text =
+          String(command)
+            .toLowerCase()
+            .replace(
+              /[.,!?]/g,
+              ""
+            )
+            .trim();
+
+        // ----------------------------------------------------
+        // CLOSE YOUTUBE
+        // ----------------------------------------------------
+
+        const closeCommand =
+          /\b(close|hide|remove|dismiss|exit|stop)\b/.test(
+            text
+          ) &&
+          /\b(youtube|video|player)\b/.test(
+            text
+          );
+
+        if (
+          closeCommand &&
+          youtubeVideo
+        ) {
+          closeYouTube();
+
+          return {
+            handled: true,
+            response:
+              "Closing YouTube.",
+          };
+        }
+
+        // ----------------------------------------------------
+        // PAUSE
+        // ----------------------------------------------------
+
+        const pauseCommand =
+          /\b(pause|hold)\b/.test(
+            text
+          ) &&
+          (
+            /\b(youtube|video|music|song)\b/.test(
+              text
+            ) ||
+            text === "pause"
+          );
+
+        if (
+          pauseCommand &&
+          youtubeVideo
+        ) {
+          pauseYouTube();
+
+          return {
+            handled: true,
+            response: "Paused.",
+          };
+        }
+
+        // ----------------------------------------------------
+        // RESUME
+        // ----------------------------------------------------
+
+        const resumeCommand =
+          /\b(resume|continue|unpause|play)\b/.test(
+            text
+          ) &&
+          (
+            /\b(youtube|video|music|song)\b/.test(
+              text
+            ) ||
+            text === "resume" ||
+            text === "play"
+          );
+
+        if (
+          resumeCommand &&
+          youtubeVideo
+        ) {
+          resumeYouTube();
+
+          return {
+            handled: true,
+            response:
+              "Resuming.",
+          };
+        }
+
+        return {
+          handled: false,
+        };
+      },
+      [
+        closeYouTube,
+        pauseYouTube,
+        resumeYouTube,
+        youtubeVideo,
+      ]
+    );
+
+  // ==========================================================
+  // PROCESS ASSISTANT RESPONSE
+  // ==========================================================
+
+  const processAssistantResponse =
+    useCallback(
+      (data) => {
+        if (!data) {
+          return;
+        }
+
+        const response =
+          data.response ||
+          "I'm here. How can I help?";
+
+        // ----------------------------------------------------
+        // IMAGE SEARCH
+        // ----------------------------------------------------
+
+        if (
+          data.type ===
+          "image_search"
+        ) {
+          setImages(
+            Array.isArray(
+              data.images
+            )
+              ? data.images
+              : []
+          );
+
+          setShowImages(true);
+          setShowList(false);
+        }
+
+        // ----------------------------------------------------
+        // CLOSE IMAGES
+        // ----------------------------------------------------
+
+        if (
+          data.type ===
+          "close_images"
+        ) {
+          setShowImages(false);
+          setImages([]);
+        }
+
+        // ----------------------------------------------------
+        // LIST
+        // ----------------------------------------------------
+
+        if (
+          data.type ===
+          "list_results"
+        ) {
+          setListItems(
+            Array.isArray(
+              data.items
+            )
+              ? data.items
+              : []
+          );
+
+          setListTitle(
+            data.title ||
+              "Results"
+          );
+
+          setShowList(true);
+          setShowImages(false);
+        }
+
+        // ----------------------------------------------------
+        // CLOSE LIST
+        // ----------------------------------------------------
+
+        if (
+          data.type ===
+          "close_list"
+        ) {
+          setShowList(false);
+          setListItems([]);
+          setListTitle("");
+        }
+
+        // ----------------------------------------------------
+        // YOUTUBE PLAY
+        // ----------------------------------------------------
+
+        if (
+          data.type ===
+          "youtube_play"
+        ) {
+          openYouTube(data);
+
+          setShowImages(false);
+          setShowList(false);
+        }
+
+        // ----------------------------------------------------
+        // YOUTUBE PAUSE
+        // ----------------------------------------------------
+
+        if (
+          data.type ===
+          "youtube_pause"
+        ) {
+          pauseYouTube();
+        }
+
+        // ----------------------------------------------------
+        // YOUTUBE RESUME
+        // ----------------------------------------------------
+
+        if (
+          data.type ===
+          "youtube_resume"
+        ) {
+          resumeYouTube();
+        }
+
+        // ----------------------------------------------------
+        // YOUTUBE CLOSE
+        // ----------------------------------------------------
+
+        if (
+          data.type ===
+          "youtube_close"
+        ) {
+          closeYouTube();
+        }
+
+        // ----------------------------------------------------
+        // YOUTUBE SEARCH
+        // ----------------------------------------------------
+
+        if (
+          data.type ===
+          "youtube_search"
+        ) {
+          if (data.url) {
+            window.open(
+              data.url,
+              "_blank",
+              "noopener,noreferrer"
+            );
+          }
+        }
+
+        // ----------------------------------------------------
+        // GOOGLE SEARCH
+        // ----------------------------------------------------
+
+        if (
+          data.type ===
+          "google_search"
+        ) {
+          if (data.url) {
+            window.open(
+              data.url,
+              "_blank",
+              "noopener,noreferrer"
+            );
+          }
+        }
+
+        // ----------------------------------------------------
+        // OTHER URL FEATURES
+        // ----------------------------------------------------
+
+        if (
+          data.type ===
+            "weather_show" ||
+          data.type ===
+            "calculator_open" ||
+          data.type ===
+            "instagram_open" ||
+          data.type ===
+            "facebook_open"
+        ) {
+          if (data.url) {
+            window.open(
+              data.url,
+              "_blank",
+              "noopener,noreferrer"
+            );
+          }
+        }
+
+        // ----------------------------------------------------
+        // ADD ASSISTANT MESSAGE
+        // ----------------------------------------------------
+
+        setMessages((prev) => [
+          ...prev,
+          {
+            role: "assistant",
+            text: response,
+          },
+        ]);
+
+        // ----------------------------------------------------
+        // SPEAK
+        // ----------------------------------------------------
+
+        speak(response);
+      },
+      [
+        closeYouTube,
+        openYouTube,
+        pauseYouTube,
+        resumeYouTube,
+        speak,
+      ]
+    );
+
+  // ==========================================================
+  // SEND COMMAND
+  // ==========================================================
+
+  const sendCommand =
+    useCallback(
+      async (commandText) => {
+        const command =
+          String(
+            commandText || ""
+          ).trim();
+
+        if (
+          !command ||
+          isLoggingOutRef.current
+        ) {
+          return;
+        }
+
+        if (
+          isLoadingRef.current
+        ) {
+          return;
+        }
+
+        // ----------------------------------------------------
+        // LOCAL YOUTUBE CONTROLS
+        // ----------------------------------------------------
+
+        const localResult =
+          handleLocalYouTubeCommand(
+            command
+          );
+
+        if (
+          localResult.handled
+        ) {
+          setMessages((prev) => [
+            ...prev,
+            {
+              role: "user",
+              text: command,
+            },
+            {
+              role: "assistant",
+              text:
+                localResult.response,
+            },
+          ]);
+
+          setInput("");
+
+          speak(
+            localResult.response
+          );
+
+          return;
+        }
+
+        // ----------------------------------------------------
+        // STOP CURRENT SPEECH
+        // ----------------------------------------------------
+
+        stopSpeaking();
+
+        // ----------------------------------------------------
+        // ADD USER MESSAGE
+        // ----------------------------------------------------
+
+        setMessages((prev) => [
+          ...prev,
+          {
+            role: "user",
+            text: command,
+          },
+        ]);
+
+        setInput("");
+
+        setIsLoading(true);
+
+        isLoadingRef.current =
+          true;
+
         try {
-          playerRef.current.stopVideo();
-        } catch {}
+          const response =
+            await axios.post(
+              `${serverUrl}/api/user/asktoassistant`,
+              {
+                command,
+              },
+              {
+                withCredentials: true,
+              }
+            );
 
-        try {
-          playerRef.current.destroy();
-        } catch {}
+          processAssistantResponse(
+            response.data
+          );
+        } catch (error) {
+          console.error(
+            "Assistant request error:",
+            error
+          );
 
-        playerRef.current = null;
+          const errorMessage =
+            "I'm having trouble connecting right now. Please try again.";
+
+          setMessages((prev) => [
+            ...prev,
+            {
+              role: "assistant",
+              text: errorMessage,
+            },
+          ]);
+
+          speak(
+            errorMessage
+          );
+        } finally {
+          setIsLoading(false);
+
+          isLoadingRef.current =
+            false;
+        }
+      },
+      [
+        handleLocalYouTubeCommand,
+        processAssistantResponse,
+        serverUrl,
+        speak,
+        stopSpeaking,
+      ]
+    );
+
+  // ==========================================================
+  // SEND BUTTON
+  // ==========================================================
+
+  const handleSend = () => {
+    sendCommand(input);
+  };
+
+  // ==========================================================
+  // ENTER KEY
+  // ==========================================================
+
+  const handleKeyDown =
+    (event) => {
+      if (
+        event.key === "Enter" &&
+        !event.shiftKey
+      ) {
+        event.preventDefault();
+        handleSend();
       }
     };
-  }, [youtubeVideoId]);
 
-  // =====================================================
+  // ==========================================================
   // SPEECH RECOGNITION
-  // =====================================================
+  // ==========================================================
 
   useEffect(() => {
-    mountedRef.current = true;
+    if (
+      typeof window === "undefined"
+    ) {
+      return;
+    }
 
     const SpeechRecognition =
       window.SpeechRecognition ||
       window.webkitSpeechRecognition;
 
     if (!SpeechRecognition) {
+      console.warn(
+        "Speech recognition is not supported in this browser."
+      );
+
       return;
     }
 
@@ -1059,549 +1127,1025 @@ function Home() {
       new SpeechRecognition();
 
     recognition.continuous = true;
-
     recognition.interimResults = false;
-
-    recognition.lang = "en-US";
-
+    recognition.lang = "en-IN";
     recognition.maxAlternatives = 1;
 
-    recognitionRef.current = recognition;
-
-    // =========================
+    // --------------------------------------------------------
     // ON START
-    // =========================
+    // --------------------------------------------------------
 
-    recognition.onstart = () => {
-      recognitionStartingRef.current = false;
+    recognition.onstart =
+      () => {
+        if (
+          isLoggingOutRef.current
+        ) {
+          return;
+        }
 
-      recognitionRunningRef.current = true;
+        recognitionRunningRef.current =
+          true;
 
-      setIsListening(true);
-    };
+        setIsListening(true);
+      };
 
-    // =========================
+    // --------------------------------------------------------
     // ON RESULT
-    // =========================
+    // --------------------------------------------------------
 
-    recognition.onresult = async (event) => {
-      if (!mountedRef.current) return;
+    recognition.onresult =
+      (event) => {
+        if (
+          isLoggingOutRef.current ||
+          isSpeakingRef.current
+        ) {
+          return;
+        }
 
-      if (isSpeakingRef.current) return;
+        const lastResult =
+          event.results[
+            event.results.length - 1
+          ];
 
-      if (processingCommandRef.current) return;
+        if (!lastResult) {
+          return;
+        }
 
-      if (mediaModeRef.current) return;
+        const transcript =
+          lastResult[0]?.transcript
+            ?.trim();
 
-      const lastIndex =
-        event.results.length - 1;
+        if (!transcript) {
+          return;
+        }
 
-      const result =
-        event.results[lastIndex];
+        const now =
+          Date.now();
 
-      if (!result) return;
+        if (
+          transcript.toLowerCase() ===
+            lastTranscriptRef.current.toLowerCase() &&
+          now -
+            lastTranscriptTimeRef.current <
+            1800
+        ) {
+          return;
+        }
 
-      const transcript =
-        result[0]?.transcript?.trim();
+        lastTranscriptRef.current =
+          transcript;
 
-      if (!transcript) return;
+        lastTranscriptTimeRef.current =
+          now;
 
-      processingCommandRef.current = true;
+        setInput(transcript);
 
-      setIsProcessing(true);
+        if (
+          isLoadingRef.current ||
+          isSpeakingRef.current ||
+          isLoggingOutRef.current
+        ) {
+          return;
+        }
 
-      stopRecognition();
+        sendCommand(
+          transcript
+        );
+      };
+
+    // --------------------------------------------------------
+    // ON ERROR
+    // --------------------------------------------------------
+
+    recognition.onerror =
+      (event) => {
+        recognitionRunningRef.current =
+          false;
+
+        setIsListening(false);
+
+        if (
+          event.error ===
+            "not-allowed" ||
+          event.error ===
+            "service-not-allowed"
+        ) {
+          shouldListenRef.current =
+            false;
+
+          return;
+        }
+
+        if (
+          shouldListenRef.current &&
+          !isSpeakingRef.current &&
+          !isLoggingOutRef.current &&
+          !manualMicChangeRef.current
+        ) {
+          setTimeout(() => {
+            if (
+              shouldListenRef.current &&
+              !isSpeakingRef.current &&
+              !recognitionRunningRef.current &&
+              !isLoggingOutRef.current
+            ) {
+              startRecognition();
+            }
+          }, 700);
+        }
+      };
+
+    // --------------------------------------------------------
+    // ON END
+    // --------------------------------------------------------
+
+    recognition.onend =
+      () => {
+        recognitionRunningRef.current =
+          false;
+
+        setIsListening(false);
+
+        if (
+          !shouldListenRef.current ||
+          isSpeakingRef.current ||
+          isLoggingOutRef.current
+        ) {
+          return;
+        }
+
+        if (
+          manualMicChangeRef.current
+        ) {
+          manualMicChangeRef.current =
+            false;
+
+          return;
+        }
+
+        if (
+          !restartingRecognitionRef.current
+        ) {
+          setTimeout(() => {
+            if (
+              shouldListenRef.current &&
+              !isSpeakingRef.current &&
+              !recognitionRunningRef.current &&
+              !isLoggingOutRef.current
+            ) {
+              startRecognition();
+            }
+          }, 500);
+        }
+      };
+
+    recognitionRef.current =
+      recognition;
+
+    // --------------------------------------------------------
+    // MIC ON BY DEFAULT
+    // --------------------------------------------------------
+
+    shouldListenRef.current =
+      true;
+
+    setTimeout(() => {
+      if (
+        !isLoggingOutRef.current
+      ) {
+        startRecognition();
+      }
+    }, 600);
+
+    // --------------------------------------------------------
+    // CLEANUP
+    // --------------------------------------------------------
+
+    return () => {
+      shouldListenRef.current =
+        false;
+
+      recognitionRunningRef.current =
+        false;
 
       try {
-        await handleCommand(transcript);
+        recognition.abort();
       } catch {
-        processingCommandRef.current = false;
-
-        setIsProcessing(false);
-
-        restartRecognition(800);
+        // Ignore.
       }
+
+      recognitionRef.current =
+        null;
     };
+  }, [
+    sendCommand,
+    startRecognition,
+  ]);
 
-    // =========================
-    // ON ERROR
-    // =========================
+  // ==========================================================
+  // TOGGLE MICROPHONE
+  // ==========================================================
 
-    recognition.onerror = (event) => {
-      recognitionRunningRef.current = false;
-
-      recognitionStartingRef.current = false;
-
-      if (!mountedRef.current) return;
+  const toggleMicrophone =
+    useCallback(() => {
+      const recognition =
+        recognitionRef.current;
 
       if (
-        event.error ===
-          "not-allowed" ||
-        event.error ===
-          "service-not-allowed"
+        !recognition ||
+        isLoggingOutRef.current
       ) {
-        shouldContinueRef.current = false;
+        return;
+      }
+
+      // ------------------------------------------------------
+      // TURN MIC OFF
+      // ------------------------------------------------------
+
+      if (
+        shouldListenRef.current
+      ) {
+        manualMicChangeRef.current =
+          true;
+
+        shouldListenRef.current =
+          false;
+
+        recognitionRunningRef.current =
+          false;
+
+        try {
+          recognition.abort();
+        } catch {
+          // Ignore.
+        }
 
         setIsListening(false);
 
         return;
       }
 
-      if (!mediaModeRef.current) {
-        restartRecognition(
-          event.error === "network"
-            ? 1500
-            : 700
+      // ------------------------------------------------------
+      // TURN MIC ON
+      // ------------------------------------------------------
+
+      manualMicChangeRef.current =
+        false;
+
+      shouldListenRef.current =
+        true;
+
+      startRecognition();
+    }, [
+      startRecognition,
+    ]);
+
+  // ==========================================================
+  // LOGOUT
+  // ==========================================================
+
+  const handleLogout =
+    useCallback(async () => {
+      // Prevent double-click logout.
+      if (
+        isLoggingOutRef.current
+      ) {
+        return;
+      }
+
+      isLoggingOutRef.current =
+        true;
+
+      setIsLoggingOut(true);
+
+      // ------------------------------------------------------
+      // STOP MICROPHONE
+      // ------------------------------------------------------
+
+      shouldListenRef.current =
+        false;
+
+      recognitionRunningRef.current =
+        false;
+
+      restartingRecognitionRef.current =
+        false;
+
+      manualMicChangeRef.current =
+        true;
+
+      if (
+        recognitionRef.current
+      ) {
+        try {
+          recognitionRef.current.abort();
+        } catch {
+          // Ignore.
+        }
+      }
+
+      setIsListening(false);
+
+      // ------------------------------------------------------
+      // STOP SPEECH
+      // ------------------------------------------------------
+
+      if (
+        typeof window !== "undefined" &&
+        window.speechSynthesis
+      ) {
+        window.speechSynthesis.cancel();
+      }
+
+      isSpeakingRef.current =
+        false;
+
+      setIsSpeaking(false);
+
+      // ------------------------------------------------------
+      // STOP YOUTUBE
+      // ------------------------------------------------------
+
+      if (
+        youtubeIframeRef.current
+      ) {
+        try {
+          youtubeIframeRef.current.contentWindow?.postMessage(
+            JSON.stringify({
+              event: "command",
+              func: "stopVideo",
+              args: [],
+            }),
+            "*"
+          );
+        } catch {
+          // Ignore.
+        }
+      }
+
+      // ------------------------------------------------------
+      // CLEAR FRONTEND SESSION IMMEDIATELY
+      // ------------------------------------------------------
+
+      setUserData(null);
+
+      // ------------------------------------------------------
+      // TRY BACKEND LOGOUT
+      // ------------------------------------------------------
+
+      try {
+        await axios.get(
+          `${serverUrl}/api/user/logout`,
+          {
+            withCredentials: true,
+            timeout: 5000,
+          }
+        );
+      } catch (error) {
+        console.warn(
+          "Backend logout request failed, continuing logout:",
+          error
+        );
+      } finally {
+        // ----------------------------------------------------
+        // ALWAYS GO TO SIGN IN
+        // ----------------------------------------------------
+
+        setUserData(null);
+
+        navigate(
+          "/signin",
+          {
+            replace: true,
+          }
+        );
+      }
+    }, [
+      navigate,
+      serverUrl,
+      setUserData,
+    ]);
+
+  // ==========================================================
+  // IMAGE CLICK
+  // ==========================================================
+
+  const openImage =
+    (image) => {
+      if (
+        image?.contextLink
+      ) {
+        window.open(
+          image.contextLink,
+          "_blank",
+          "noopener,noreferrer"
+        );
+      } else if (
+        image?.link
+      ) {
+        window.open(
+          image.link,
+          "_blank",
+          "noopener,noreferrer"
         );
       }
     };
 
-    // =========================
-    // ON END
-    // =========================
+  // ==========================================================
+  // CLEANUP SPEECH
+  // ==========================================================
 
-    recognition.onend = () => {
-      recognitionRunningRef.current = false;
-
-      recognitionStartingRef.current = false;
-
-      setIsListening(false);
-
-      if (!mountedRef.current) return;
-
-      if (!shouldContinueRef.current) return;
-
-      if (isSpeakingRef.current) return;
-
-      if (processingCommandRef.current) return;
-
-      if (mediaModeRef.current) return;
-
-      restartRecognition(700);
-    };
-
-    // =========================
-    // START
-    // =========================
-
-    shouldContinueRef.current = true;
-
-    const timer = setTimeout(() => {
-      startRecognition();
-    }, 800);
-
-    // =========================
-    // CLEANUP
-    // =========================
-
+  useEffect(() => {
     return () => {
-      mountedRef.current = false;
+      shouldListenRef.current =
+        false;
 
-      shouldContinueRef.current = false;
+      isLoggingOutRef.current =
+        true;
 
-      clearTimeout(timer);
-
-      clearRestartTimer();
-
-      recognitionRunningRef.current = false;
-
-      recognitionStartingRef.current = false;
-
-      recognition.onstart = null;
-      recognition.onresult = null;
-      recognition.onerror = null;
-      recognition.onend = null;
-
-      try {
-        recognition.stop();
-      } catch {}
-
-      window.speechSynthesis.cancel();
-
-      if (playerRef.current) {
-        try {
-          playerRef.current.destroy();
-        } catch {}
-
-        playerRef.current = null;
+      if (
+        typeof window !== "undefined" &&
+        window.speechSynthesis
+      ) {
+        window.speechSynthesis.cancel();
       }
 
-      recognitionRef.current = null;
-    };
-  }, [
-    serverUrl,
-    userData?.assistantName,
-  ]);
-
-  // =========================
-  // FORCE STOP LUCY
-  // =========================
-
-  const forceStopLucy = () => {
-    shouldContinueRef.current = false;
-
-    processingCommandRef.current = false;
-
-    isSpeakingRef.current = false;
-
-    mediaModeRef.current = true;
-
-    clearRestartTimer();
-
-    stopRecognition();
-
-    window.speechSynthesis.cancel();
-
-    setIsListening(false);
-
-    setIsProcessing(false);
-
-    setIsSpeaking(false);
-  };
-
-  // =========================
-  // ACTIVATE LUCY
-  // =========================
-
-  const activateLucy = () => {
-    shouldContinueRef.current = true;
-
-    processingCommandRef.current = false;
-
-    mediaModeRef.current = false;
-
-    setIsProcessing(false);
-
-    startRecognition();
-  };
-
-  // =========================
-  // LOGOUT
-  // =========================
-
-  const handleLogout = async () => {
-    try {
-      shouldContinueRef.current = false;
-
-      stopRecognition();
-
-      window.speechSynthesis.cancel();
-
-      if (playerRef.current) {
+      if (
+        recognitionRef.current
+      ) {
         try {
-          playerRef.current.destroy();
-        } catch {}
-
-        playerRef.current = null;
-      }
-
-      await axios.get(
-        `${serverUrl}/api/auth/logout`,
-        {
-          withCredentials: true,
+          recognitionRef.current.abort();
+        } catch {
+          // Ignore.
         }
-      );
+      }
+    };
+  }, []);
 
-      setUserData(null);
-
-      navigate("/signup");
-    } catch {
-      setUserData(null);
-
-      navigate("/signup");
-    }
-  };
-
-  // =========================
-  // UI
-  // =========================
+  // ==========================================================
+  // RENDER
+  // ==========================================================
 
   return (
-    <div className="w-full h-screen overflow-hidden bg-gradient-to-br from-black via-[#05052d] to-[#000000] relative">
+    <div className="w-full min-h-screen bg-gradient-to-b from-black via-[#030712] to-[#020617] text-white flex flex-col">
 
-      {/* =========================
-          CUSTOMIZE
-      ========================= */}
+      {/* ====================================================
+          HEADER
+      ==================================================== */}
 
-      <button
-        onClick={() =>
-          navigate("/customize")
-        }
-        className="absolute top-6 left-6 z-[100] px-6 py-3 rounded-full bg-white/10 hover:bg-white/20 border border-white/20 text-white font-semibold backdrop-blur-md transition-all"
-      >
-        Customize
-      </button>
+      <header className="w-full px-5 py-4 flex items-center justify-between border-b border-white/10 bg-black/20 backdrop-blur-md">
 
-      {/* =========================
-          LOGOUT
-      ========================= */}
+        <div className="flex items-center gap-3">
 
-      <button
-        onClick={handleLogout}
-        className="absolute top-6 right-6 z-[100] px-6 py-3 rounded-full bg-red-500/20 hover:bg-red-500/30 border border-red-400/30 text-white font-semibold backdrop-blur-md transition-all"
-      >
-        Log Out
-      </button>
-
-      {/* =========================
-          MAIN ASSISTANT
-      ========================= */}
-
-      <div
-        className={`absolute inset-0 flex flex-col items-center justify-center transition-all duration-500 ${
-          youtubeVideoId ||
-          imageResults.length > 0
-            ? "mr-[50%]"
-            : ""
-        }`}
-      >
-        {/* ASSISTANT IMAGE */}
-
-        <div className="w-[280px] h-[380px] overflow-hidden rounded-3xl border border-white/20 shadow-2xl bg-black/30">
-          <img
-            src={userData?.assistantImage}
-            alt="Assistant"
-            className="w-full h-full object-cover"
-          />
-        </div>
-
-        {/* ASSISTANT NAME */}
-
-        <h1 className="mt-6 text-white text-3xl font-bold">
-          I'm{" "}
-          <span className="text-blue-400">
-            {userData?.assistantName ||
-              "Lucy"}
-          </span>
-        </h1>
-
-        {/* STATUS */}
-
-        <div className="mt-5 flex items-center gap-3 text-gray-300">
-          <div
-            className={`w-3 h-3 rounded-full ${
-              isSpeaking
-                ? "bg-purple-400 animate-pulse"
-                : youtubePlaying
-                ? "bg-green-400 animate-pulse"
-                : isProcessing
-                ? "bg-blue-400 animate-pulse"
-                : isListening
-                ? "bg-green-400 animate-pulse"
-                : "bg-gray-500"
-            }`}
-          />
-
-          <span>
-            {isSpeaking
-              ? "Lucy is speaking..."
-              : youtubePlaying
-              ? "Music playing — voice paused"
-              : isProcessing
-              ? "Processing..."
-              : isListening
-              ? "Listening..."
-              : "Voice stopped"}
-          </span>
-        </div>
-
-        {/* ACTIVATE */}
-
-        {!isListening && (
-          <button
-            onClick={activateLucy}
-            className="mt-5 px-6 py-3 rounded-full bg-blue-500/20 hover:bg-blue-500/40 border border-blue-400/30 text-blue-200 transition-all"
-          >
-            🎤 Activate Lucy
-          </button>
-        )}
-
-        {/* STOP */}
-
-        {isListening && (
-          <button
-            onClick={forceStopLucy}
-            className="mt-5 px-6 py-3 rounded-full bg-red-500/20 hover:bg-red-500/40 border border-red-400/30 text-red-200 transition-all"
-          >
-            ⏹ Stop Lucy
-          </button>
-        )}
-      </div>
-
-      {/* =====================================================
-          YOUTUBE PLAYER
-      ===================================================== */}
-
-      {youtubeVideoId && (
-        <div className="absolute right-5 top-1/2 -translate-y-1/2 w-[47%] max-w-[900px] z-50">
-          <div className="rounded-2xl overflow-hidden border border-white/20 bg-black shadow-2xl">
-
-            {/* VIDEO */}
-
-            <div className="aspect-video bg-black">
-              <div
-                ref={playerContainerRef}
-                className="w-full h-full"
-              />
-            </div>
-
-            {/* PLAYER INFO */}
-
-            <div className="p-5 bg-black/90">
-              <p className="text-white font-semibold truncate">
-                {youtubeTitle ||
-                  "YouTube"}
-              </p>
-
-              <p className="text-gray-400 text-sm mt-1">
-                {youtubePlaying
-                  ? "Playing"
-                  : "Paused"}
-              </p>
-
-              {/* ACTIVATE */}
-
-              <button
-                onClick={activateLucy}
-                className="mt-4 w-full px-5 py-3 rounded-full bg-blue-500/20 hover:bg-blue-500/40 border border-blue-400/30 text-blue-200 transition-all"
-              >
-                🎤 Activate Lucy
-              </button>
-
-              {/* CLOSE */}
-
-              <button
-                onClick={closeVideo}
-                className="mt-3 w-full px-5 py-3 rounded-full bg-red-500/20 hover:bg-red-500/40 border border-red-400/30 text-red-200 transition-all"
-              >
-                Close YouTube
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* =====================================================
-          IMAGE RESULTS
-      ===================================================== */}
-
-      {imageResults.length > 0 && (
-        <div className="absolute right-5 top-1/2 -translate-y-1/2 w-[47%] max-w-[900px] h-[78vh] z-50 rounded-2xl overflow-hidden border border-white/20 bg-black/95 shadow-2xl">
-
-          {/* HEADER */}
-
-          <div className="px-5 py-4 border-b border-white/10">
-            <p className="text-white font-semibold">
-              Image Results
-            </p>
-
-            <p className="text-gray-400 text-sm truncate">
-              {imageQuery}
-            </p>
-
-            <button
-              onClick={closeImages}
-              className="mt-3 px-4 py-2 rounded-full bg-red-500/20 hover:bg-red-500/30 border border-red-400/20 text-red-200 text-sm"
-            >
-              Close Images
-            </button>
-          </div>
-
-          {/* IMAGES */}
-
-          <div className="grid grid-cols-2 gap-3 p-4 overflow-y-auto h-[calc(78vh-105px)]">
-            {imageResults.map(
-              (image, index) => (
-                <a
-                  key={
-                    image.id ||
-                    `${image.link}-${index}`
-                  }
-                  href={
-                    image.contextLink ||
-                    image.link ||
-                    "#"
-                  }
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="block rounded-xl overflow-hidden bg-white/5 border border-white/10 hover:border-blue-400/60 hover:scale-[1.02] transition-all"
-                >
-                  <img
-                    src={
-                      image.thumbnailLink ||
-                      image.link
-                    }
-                    alt={
-                      image.title ||
-                      "Image"
-                    }
-                    className="w-full h-40 object-cover"
-                    loading="lazy"
-                    onError={(event) => {
-                      event.currentTarget.style.display =
-                        "none";
-                    }}
-                  />
-
-                  <div className="p-2">
-                    <p className="text-white text-xs line-clamp-2">
-                      {image.title ||
-                        "Image"}
-                    </p>
-
-                    {image.source && (
-                      <p className="text-gray-500 text-[10px] mt-1">
-                        {image.source}
-                      </p>
-                    )}
-                  </div>
-                </a>
-              )
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* =====================================================
-          BOTTOM STATUS
-      ===================================================== */}
-
-      <div className="absolute bottom-5 left-1/2 -translate-x-1/2 z-[100]">
-
-        {/* YOUTUBE STATUS */}
-
-        {youtubeVideoId && (
-          <div className="flex items-center gap-3 px-5 py-3 rounded-full bg-black/80 border border-white/10 backdrop-blur-md">
-
-            <span
-              className={`w-2.5 h-2.5 rounded-full ${
-                youtubePlaying
-                  ? "bg-green-400 animate-pulse"
-                  : "bg-yellow-400"
-              }`}
+          {assistantImage ? (
+            <img
+              src={assistantImage}
+              alt={assistantName}
+              className="w-12 h-12 rounded-full object-cover border-2 border-cyan-400 shadow-lg shadow-cyan-500/30"
             />
-
-            <span className="text-gray-200 text-sm">
-              {youtubePlaying
-                ? "Music playing"
-                : "Music paused"}
-            </span>
-
-            <span className="text-gray-500 text-xs">
-              Voice paused
-            </span>
-          </div>
-        )}
-
-        {/* IMAGE STATUS */}
-
-        {!youtubeVideoId &&
-          imageResults.length > 0 && (
-            <div className="px-5 py-3 rounded-full bg-black/80 border border-white/10 backdrop-blur-md text-gray-300 text-sm">
-              Say "Lucy close images"
+          ) : (
+            <div className="w-12 h-12 rounded-full bg-cyan-500 flex items-center justify-center font-bold text-xl">
+              L
             </div>
           )}
+
+          <div>
+            <h1 className="text-xl font-semibold">
+              {assistantName}
+            </h1>
+
+            <p className="text-xs text-gray-400">
+              {isLoggingOut
+                ? "Logging out..."
+                : isListening
+                ? "Listening..."
+                : isSpeaking
+                ? "Speaking..."
+                : "Ready"}
+            </p>
+          </div>
+
+        </div>
+
+        <div className="flex items-center gap-2">
+
+          {/* SPEAKER */}
+
+          <button
+            onClick={() => {
+              if (isSpeaking) {
+                stopSpeaking();
+              }
+
+              setIsMuted(
+                (prev) => !prev
+              );
+            }}
+            disabled={isLoggingOut}
+            className="p-3 rounded-full bg-white/10 hover:bg-white/20 transition disabled:opacity-50"
+            title={
+              isMuted
+                ? "Enable voice"
+                : "Mute voice"
+            }
+          >
+            {isMuted ? (
+              <IoVolumeMute
+                size={21}
+              />
+            ) : (
+              <IoVolumeHigh
+                size={21}
+              />
+            )}
+          </button>
+
+          {/* LOGOUT */}
+
+          <button
+            type="button"
+            onClick={
+              handleLogout
+            }
+            disabled={
+              isLoggingOut
+            }
+            className="p-3 rounded-full bg-red-500/20 hover:bg-red-500/40 transition disabled:opacity-50 disabled:cursor-not-allowed"
+            title="Logout"
+          >
+            <IoLogOutOutline
+              size={22}
+            />
+          </button>
+
+        </div>
+
+      </header>
+
+      {/* ====================================================
+          ASSISTANT AREA
+      ==================================================== */}
+
+      <div className="flex flex-col items-center pt-6 px-4">
+
+        {assistantImage ? (
+          <img
+            src={assistantImage}
+            alt={assistantName}
+            className={`w-36 h-36 md:w-44 md:h-44 rounded-full object-cover border-4 transition-all duration-500 ${
+              isSpeaking
+                ? "border-cyan-300 shadow-[0_0_50px_rgba(34,211,238,0.7)] scale-105"
+                : isListening
+                ? "border-green-400 shadow-[0_0_40px_rgba(34,197,94,0.5)]"
+                : "border-cyan-500/50"
+            }`}
+          />
+        ) : (
+          <div
+            className={`w-36 h-36 md:w-44 md:h-44 rounded-full bg-gradient-to-br from-cyan-400 to-blue-700 flex items-center justify-center text-6xl font-bold transition-all ${
+              isSpeaking
+                ? "scale-105 shadow-[0_0_50px_rgba(34,211,238,0.7)]"
+                : ""
+            }`}
+          >
+            L
+          </div>
+        )}
+
+        <h2 className="mt-4 text-2xl font-semibold">
+          {assistantName}
+        </h2>
+
+        <p className="text-gray-400 text-sm mt-1">
+          {isLoggingOut
+            ? "Goodbye..."
+            : isListening
+            ? "I'm listening..."
+            : isSpeaking
+            ? "I'm speaking..."
+            : "How can I help?"}
+        </p>
+
       </div>
+
+      {/* ====================================================
+          YOUTUBE PLAYER
+      ==================================================== */}
+
+      {youtubeVideo && (
+        <div className="w-full max-w-4xl mx-auto px-4 mt-6">
+
+          <div className="bg-black/50 border border-white/10 rounded-2xl overflow-hidden shadow-2xl">
+
+            <div className="flex items-center justify-between px-4 py-3 border-b border-white/10">
+
+              <div className="flex items-center gap-2 min-w-0">
+
+                <span className="text-red-400">
+                  YouTube
+                </span>
+
+                <span className="text-sm text-gray-300 truncate">
+                  {youtubeTitle}
+                </span>
+
+              </div>
+
+              <div className="flex items-center gap-2">
+
+                <button
+                  onClick={
+                    youtubePlaying
+                      ? pauseYouTube
+                      : resumeYouTube
+                  }
+                  className="p-2 rounded-lg bg-white/10 hover:bg-white/20"
+                  title={
+                    youtubePlaying
+                      ? "Pause"
+                      : "Resume"
+                  }
+                >
+                  {youtubePlaying ? (
+                    <FaPause
+                      size={14}
+                    />
+                  ) : (
+                    <FaPlay
+                      size={14}
+                    />
+                  )}
+                </button>
+
+                <button
+                  onClick={
+                    closeYouTube
+                  }
+                  className="p-2 rounded-lg bg-red-500/20 hover:bg-red-500/40"
+                  title="Close YouTube"
+                >
+                  <FaTimes
+                    size={16}
+                  />
+                </button>
+
+              </div>
+
+            </div>
+
+            <div className="aspect-video w-full">
+
+              <iframe
+                ref={
+                  youtubeIframeRef
+                }
+                key={youtubeVideo}
+                className="w-full h-full"
+                src={`https://www.youtube.com/embed/${youtubeVideo}?autoplay=1&enablejsapi=1&origin=${encodeURIComponent(
+                  window.location.origin
+                )}`}
+                title={youtubeTitle}
+                allow="autoplay; encrypted-media; picture-in-picture"
+                allowFullScreen
+              />
+
+            </div>
+
+          </div>
+
+        </div>
+      )}
+
+      {/* ====================================================
+          IMAGE RESULTS
+      ==================================================== */}
+
+      {showImages && (
+        <div className="w-full max-w-6xl mx-auto px-4 mt-6">
+
+          <div className="flex items-center justify-between mb-3">
+
+            <h3 className="text-lg font-semibold">
+              Image Results
+            </h3>
+
+            <button
+              onClick={() => {
+                setShowImages(false);
+                setImages([]);
+              }}
+              className="px-3 py-1 rounded-lg bg-white/10 hover:bg-white/20 text-sm"
+            >
+              Close
+            </button>
+
+          </div>
+
+          {images.length > 0 ? (
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+
+              {images.map(
+                (image) => (
+                  <button
+                    key={
+                      image.id
+                    }
+                    onClick={() =>
+                      openImage(
+                        image
+                      )
+                    }
+                    className="rounded-xl overflow-hidden bg-white/5 border border-white/10 hover:border-cyan-400 hover:scale-[1.02] transition"
+                  >
+                    <img
+                      src={
+                        image.thumbnailLink ||
+                        image.link
+                      }
+                      alt={
+                        image.title ||
+                        "Image"
+                      }
+                      className="w-full h-40 object-cover"
+                      loading="lazy"
+                    />
+
+                    <div className="p-2 text-left">
+                      <p className="text-xs text-gray-300 line-clamp-2">
+                        {
+                          image.title
+                        }
+                      </p>
+                    </div>
+
+                  </button>
+                )
+              )}
+
+            </div>
+          ) : (
+            <div className="p-5 rounded-xl bg-white/5 text-gray-400">
+              No images found.
+            </div>
+          )}
+
+        </div>
+      )}
+
+      {/* ====================================================
+          LIST RESULTS
+      ==================================================== */}
+
+      {showList && (
+        <div className="w-full max-w-3xl mx-auto px-4 mt-6">
+
+          <div className="rounded-2xl bg-white/5 border border-white/10 overflow-hidden">
+
+            <div className="flex items-center justify-between px-5 py-4 border-b border-white/10">
+
+              <h3 className="font-semibold text-lg">
+                {listTitle ||
+                  "Results"}
+              </h3>
+
+              <button
+                onClick={() => {
+                  setShowList(false);
+                  setListItems([]);
+                  setListTitle("");
+                }}
+                className="px-3 py-1 rounded-lg bg-white/10 hover:bg-white/20 text-sm"
+              >
+                Close
+              </button>
+
+            </div>
+
+            <div className="p-4 space-y-2">
+
+              {listItems.map(
+                (
+                  item,
+                  index
+                ) => (
+                  <div
+                    key={
+                      item.id ||
+                      index
+                    }
+                    className="flex items-center gap-3 p-3 rounded-xl bg-black/20 hover:bg-white/10 transition"
+                  >
+
+                    <div className="w-8 h-8 rounded-full bg-cyan-500/20 text-cyan-300 flex items-center justify-center text-sm">
+                      {index + 1}
+                    </div>
+
+                    <div className="flex-1">
+
+                      <p className="font-medium">
+                        {item.title ||
+                          item.name ||
+                          `Item ${
+                            index + 1
+                          }`}
+                      </p>
+
+                      {item.description && (
+                        <p className="text-sm text-gray-400 mt-1">
+                          {
+                            item.description
+                          }
+                        </p>
+                      )}
+
+                    </div>
+
+                  </div>
+                )
+              )}
+
+            </div>
+
+          </div>
+
+        </div>
+      )}
+
+      {/* ====================================================
+          CHAT
+      ==================================================== */}
+
+      <div className="flex-1 w-full max-w-4xl mx-auto px-4 py-6">
+
+        <div className="space-y-4">
+
+          {messages.length ===
+            0 && (
+            <div className="text-center text-gray-500 py-10">
+
+              <p>
+                Say "Hey{" "}
+                {assistantName}"
+                and start talking.
+              </p>
+
+              <p className="text-xs mt-2">
+                Try: "play some music",
+                "pause YouTube", or
+                "close YouTube".
+              </p>
+
+            </div>
+          )}
+
+          {messages.map(
+            (
+              message,
+              index
+            ) => (
+              <div
+                key={index}
+                className={`flex ${
+                  message.role ===
+                  "user"
+                    ? "justify-end"
+                    : "justify-start"
+                }`}
+              >
+
+                <div
+                  className={`max-w-[80%] px-4 py-3 rounded-2xl ${
+                    message.role ===
+                    "user"
+                      ? "bg-cyan-600 text-white rounded-br-md"
+                      : "bg-white/10 text-gray-100 rounded-bl-md"
+                  }`}
+                >
+                  {message.text}
+                </div>
+
+              </div>
+            )
+          )}
+
+          {isLoading && (
+            <div className="flex justify-start">
+
+              <div className="px-4 py-3 rounded-2xl bg-white/10 text-gray-400">
+                <span className="animate-pulse">
+                  {assistantName} is
+                  thinking...
+                </span>
+              </div>
+
+            </div>
+          )}
+
+          <div
+            ref={
+              messagesEndRef
+            }
+          />
+
+        </div>
+
+      </div>
+
+      {/* ====================================================
+          INPUT
+      ==================================================== */}
+
+      <div className="w-full max-w-4xl mx-auto px-4 pb-5">
+
+        <div className="flex items-center gap-2 p-2 rounded-2xl bg-white/10 border border-white/10 backdrop-blur-md">
+
+          {/* MIC */}
+
+          <button
+            type="button"
+            onClick={
+              toggleMicrophone
+            }
+            disabled={
+              isLoggingOut
+            }
+            className={`shrink-0 w-12 h-12 rounded-xl flex items-center justify-center transition ${
+              isListening
+                ? "bg-green-500 hover:bg-green-600"
+                : "bg-white/10 hover:bg-white/20"
+            } disabled:opacity-50`}
+            title={
+              isListening
+                ? "Turn microphone off"
+                : "Turn microphone on"
+            }
+          >
+            {isListening ? (
+              <IoMic
+                size={23}
+              />
+            ) : (
+              <IoMicOff
+                size={23}
+              />
+            )}
+          </button>
+
+          {/* INPUT */}
+
+          <input
+            type="text"
+            value={input}
+            disabled={
+              isLoggingOut
+            }
+            onChange={(e) =>
+              setInput(
+                e.target.value
+              )
+            }
+            onKeyDown={
+              handleKeyDown
+            }
+            placeholder={
+              isListening
+                ? "Listening..."
+                : "Type a message..."
+            }
+            className="flex-1 min-w-0 bg-transparent outline-none px-2 text-white placeholder:text-gray-500"
+          />
+
+          {/* SEND */}
+
+          <button
+            type="button"
+            onClick={
+              handleSend
+            }
+            disabled={
+              !input.trim() ||
+              isLoading ||
+              isLoggingOut
+            }
+            className="shrink-0 w-12 h-12 rounded-xl bg-cyan-500 hover:bg-cyan-600 disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center transition"
+          >
+            <IoSend
+              size={21}
+            />
+          </button>
+
+        </div>
+
+        <p className="text-center text-xs text-gray-600 mt-2">
+          {isLoggingOut
+            ? "Logging out..."
+            : isListening
+            ? "Microphone is on"
+            : "Microphone is off"}
+        </p>
+
+      </div>
+
     </div>
   );
 }

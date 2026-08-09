@@ -2,20 +2,32 @@ import jwt from "jsonwebtoken";
 
 const isAuth = async (req, res, next) => {
   try {
-    const token = req.cookies.token;
+    const token = req.cookies?.token;
 
     if (!token) {
-      return res.status(400).json({ message: "token not found" });
+      return res.status(401).json({
+        message: "Authentication token not found",
+      });
     }
 
-    const verify = jwt.verify(token, process.env.JWT_SECRET);
+    const decoded = jwt.verify(
+      token,
+      process.env.JWT_SECRET
+    );
 
-    req.userId = verify.userId;
+    if (!decoded?.userId) {
+      return res.status(401).json({
+        message: "Invalid authentication token",
+      });
+    }
+
+    req.userId = decoded.userId;
 
     next();
-  } catch (err) {
-    console.log(err);
-    return res.status(500).json({ message: "is auth error" });
+  } catch (error) {
+    return res.status(401).json({
+      message: "Authentication failed",
+    });
   }
 };
 

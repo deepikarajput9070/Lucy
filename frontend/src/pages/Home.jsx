@@ -59,6 +59,7 @@ function Home() {
   const messagesEndRef = useRef(null);
   const youtubeIframeRef = useRef(null);
   const speechVoicesRef = useRef([]);
+  const pendingExternalWindowRef = useRef(null);
 
   const shouldListenRef = useRef(true);
   const recognitionRunningRef = useRef(false);
@@ -173,6 +174,80 @@ function Home() {
 
     return englishVoice || voices[0];
   }, []);
+
+  const isExternalCommand = useCallback((command) => {
+    if (!command || typeof command !== "string") {
+      return false;
+    }
+
+    return /\b(open|search|google|instagram|facebook|youtube|calculator)\b/i.test(
+      command
+    );
+  }, []);
+
+  const createPendingExternalWindow = useCallback((command) => {
+    if (
+      typeof window === "undefined" ||
+      !isExternalCommand(command)
+    ) {
+      return;
+    }
+
+    try {
+      pendingExternalWindowRef.current = window.open(
+        "about:blank",
+        "_blank"
+      );
+    } catch (error) {
+      console.warn(
+        "Could not create pending external window:",
+        error
+      );
+      pendingExternalWindowRef.current = null;
+    }
+  }, [isExternalCommand]);
+
+  const closePendingExternalWindow = useCallback(() => {
+    const win = pendingExternalWindowRef.current;
+
+    if (win && !win.closed) {
+      try {
+        win.close();
+      } catch (error) {
+        console.warn(
+          "Could not close pending external window:",
+          error
+        );
+      }
+    }
+
+    pendingExternalWindowRef.current = null;
+  }, []);
+
+  const openPendingExternalWindow = useCallback((url) => {
+    if (!url) {
+      closePendingExternalWindow();
+      return;
+    }
+
+    if (pendingExternalWindowRef.current) {
+      try {
+        pendingExternalWindowRef.current.location.href = url;
+      } catch (error) {
+        console.warn(
+          "Cannot navigate pending external window:",
+          error
+        );
+        closePendingExternalWindow();
+        window.open(url, "_blank", "noopener,noreferrer");
+      }
+
+      pendingExternalWindowRef.current = null;
+      return;
+    }
+
+    window.open(url, "_blank", "noopener,noreferrer");
+  }, [closePendingExternalWindow]);
 
   const stopRecognition = useCallback(() => {
     const recognition = recognitionRef.current;
@@ -518,39 +593,29 @@ function Home() {
         closeYouTube();
       }
 
-      if (data.type === "youtube_search") {
-        if (data.url) {
-          window.open(
-            data.url,
-            "_blank",
-            "noopener,noreferrer"
-          );
-        }
-      }
-
-      if (data.type === "google_search") {
-        if (data.url) {
-          window.open(
-            data.url,
-            "_blank",
-            "noopener,noreferrer"
-          );
-        }
-      }
-
       if (
+        data.type === "youtube_search" ||
+        data.type === "google_search" ||
         data.type === "weather_show" ||
         data.type === "calculator_open" ||
         data.type === "instagram_open" ||
         data.type === "facebook_open"
       ) {
-        if (data.url) {
-          window.open(
-            data.url,
-            "_blank",
-            "noopener,noreferrer"
-          );
-        }
+        openPendingExternalWindow(data.url);
+      }
+
+      if (
+        pendingExternalWindowRef.current &&
+        ![
+          "youtube_search",
+          "google_search",
+          "weather_show",
+          "calculator_open",
+          "instagram_open",
+          "facebook_open",
+        ].includes(data.type)
+      ) {
+        closePendingExternalWindow();
       }
 
       setMessages((prev) => [
@@ -636,8 +701,9 @@ function Home() {
             withCredentials: true,
           }
         );
-
+        console.log("ASSISTANT RESPONSE:", response.data);
         processAssistantResponse(response.data);
+        
       } catch (error) {
         console.error(
           "Assistant request error:",
@@ -671,6 +737,7 @@ function Home() {
   );
 
   const handleSend = () => {
+    createPendingExternalWindow(input);
     sendCommand(input);
   };
 

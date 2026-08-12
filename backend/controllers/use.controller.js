@@ -1,6 +1,15 @@
 import User from "../models/user.model.js";
 
 import {
+  getRecentMemory,
+  saveMemory,
+} from "../service/memory.service.js";
+
+import {
+  detectIntent,
+} from "../service/intent.service.js";
+
+import {
   uploadOnCloudinary,
 } from "../config/cloudinary.js";
 

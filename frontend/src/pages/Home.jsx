@@ -5,7 +5,6 @@ import React, {
   useRef,
   useState,
 } from "react";
-
 import axios from "axios";
 import { useNavigate } from "react-router-dom";
 
@@ -72,8 +71,11 @@ function Home() {
   const lastTranscriptRef = useRef("");
   const lastTranscriptTimeRef = useRef(0);
 
-  const assistantName = userData?.assistantName || "Lucy";
-  const assistantImage = userData?.assistantImage || "";
+  const assistantName =
+    userData?.assistantName?.trim() || "Assistant";
+
+  const assistantImage =
+    userData?.assistantImage || "";
 
   useEffect(() => {
     isLoadingRef.current = isLoading;
@@ -100,7 +102,8 @@ function Home() {
 
     loadVoices();
 
-    window.speechSynthesis.onvoiceschanged = loadVoices;
+    window.speechSynthesis.onvoiceschanged =
+      loadVoices;
 
     return () => {
       window.speechSynthesis.onvoiceschanged = null;
@@ -115,142 +118,173 @@ function Home() {
       return null;
     }
 
-    const voices = speechVoicesRef.current.length
-      ? speechVoicesRef.current
-      : window.speechSynthesis.getVoices();
+    const voices =
+      window.speechSynthesis.getVoices();
 
     if (!voices.length) {
       return null;
     }
 
-    const preferredNames = [
-      "Microsoft Jenny",
-      "Microsoft Aria",
-      "Microsoft Zira",
-      "Google UK English Female",
-      "Google US English Female",
-      "Samantha",
-      "Karen",
-      "Moira",
-      "Tessa",
-      "Victoria",
-      "Veena",
-      "Aditi",
+    const hindiVoices = voices.filter((voice) => {
+      const lang = voice.lang?.toLowerCase() || "";
+
+      return (
+        lang === "hi-in" ||
+        lang.startsWith("hi")
+      );
+    });
+
+    const femaleKeywords = [
+      "female",
+      "woman",
+      "zira",
+      "heera",
+      "swara",
+      "aditi",
+      "neerja",
+      "google hindi",
+      "google हिन्दी",
     ];
 
-    for (const preferredName of preferredNames) {
-      const found = voices.find((voice) =>
-        voice.name
-          .toLowerCase()
-          .includes(preferredName.toLowerCase())
-      );
+    const femaleHindiVoice =
+      hindiVoices.find((voice) => {
+        const name =
+          voice.name?.toLowerCase() || "";
 
-      if (found) {
-        return found;
-      }
+        return femaleKeywords.some((keyword) =>
+          name.includes(keyword)
+        );
+      });
+
+    if (femaleHindiVoice) {
+      return femaleHindiVoice;
     }
 
-    const femaleVoice = voices.find((voice) =>
-      /female|jenny|aria|zira|samantha|karen|moira|tessa|victoria|veena|aditi/i.test(
-        voice.name
-      )
-    );
-
-    if (femaleVoice) {
-      return femaleVoice;
+    if (hindiVoices.length > 0) {
+      return hindiVoices[0];
     }
 
-    const indianEnglishVoice = voices.find((voice) =>
-      /en-IN/i.test(voice.lang)
+    const indianEnglishVoice = voices.find(
+      (voice) =>
+        voice.lang?.toLowerCase() === "en-in"
     );
 
     if (indianEnglishVoice) {
       return indianEnglishVoice;
     }
 
-    const englishVoice = voices.find((voice) =>
-      /^en(-|_)/i.test(voice.lang)
-    );
+    const englishFemaleVoice = voices.find(
+      (voice) => {
+        const name =
+          voice.name?.toLowerCase() || "";
 
-    return englishVoice || voices[0];
-  }, []);
+        const lang =
+          voice.lang?.toLowerCase() || "";
 
-  const isExternalCommand = useCallback((command) => {
-    if (!command || typeof command !== "string") {
-      return false;
-    }
-
-    return /\b(open|search|google|instagram|facebook|youtube|calculator)\b/i.test(
-      command
-    );
-  }, []);
-
-  const createPendingExternalWindow = useCallback((command) => {
-    if (
-      typeof window === "undefined" ||
-      !isExternalCommand(command)
-    ) {
-      return;
-    }
-
-    try {
-      pendingExternalWindowRef.current = window.open(
-        "about:blank",
-        "_blank"
-      );
-    } catch (error) {
-      console.warn(
-        "Could not create pending external window:",
-        error
-      );
-      pendingExternalWindowRef.current = null;
-    }
-  }, [isExternalCommand]);
-
-  const closePendingExternalWindow = useCallback(() => {
-    const win = pendingExternalWindowRef.current;
-
-    if (win && !win.closed) {
-      try {
-        win.close();
-      } catch (error) {
-        console.warn(
-          "Could not close pending external window:",
-          error
+        return (
+          lang.startsWith("en") &&
+          femaleKeywords.some((keyword) =>
+            name.includes(keyword)
+          )
         );
       }
+    );
+
+    if (englishFemaleVoice) {
+      return englishFemaleVoice;
     }
 
-    pendingExternalWindowRef.current = null;
+    return voices[0];
   }, []);
 
-  const openPendingExternalWindow = useCallback((url) => {
-    if (!url) {
-      closePendingExternalWindow();
-      return;
-    }
+  const isExternalCommand = useCallback(
+    (command) => {
+      if (
+        !command ||
+        typeof command !== "string"
+      ) {
+        return false;
+      }
 
-    if (pendingExternalWindowRef.current) {
-      try {
-        pendingExternalWindowRef.current.location.href = url;
-      } catch (error) {
-        console.warn(
-          "Cannot navigate pending external window:",
-          error
-        );
-        closePendingExternalWindow();
-        window.open(url, "_blank", "noopener,noreferrer");
+      return /\b(open|search|google|instagram|facebook|youtube|calculator)\b/i.test(
+        command
+      );
+    },
+    []
+  );
+
+  const createPendingExternalWindow =
+    useCallback(
+      (command) => {
+        if (
+          typeof window === "undefined" ||
+          !isExternalCommand(command)
+        ) {
+          return;
+        }
+
+        try {
+          pendingExternalWindowRef.current =
+            window.open("about:blank", "_blank");
+        } catch {
+          pendingExternalWindowRef.current = null;
+        }
+      },
+      [isExternalCommand]
+    );
+
+  const closePendingExternalWindow =
+    useCallback(() => {
+      const win =
+        pendingExternalWindowRef.current;
+
+      if (win && !win.closed) {
+        try {
+          win.close();
+        } catch {}
       }
 
       pendingExternalWindowRef.current = null;
-      return;
-    }
+    }, []);
 
-    window.open(url, "_blank", "noopener,noreferrer");
-  }, [closePendingExternalWindow]);
+  const openPendingExternalWindow =
+    useCallback(
+      (url) => {
+        if (!url) {
+          closePendingExternalWindow();
+          return;
+        }
+
+        if (pendingExternalWindowRef.current) {
+          try {
+            pendingExternalWindowRef.current.location.href =
+              url;
+          } catch {
+            closePendingExternalWindow();
+
+            window.open(
+              url,
+              "_blank",
+              "noopener,noreferrer"
+            );
+          }
+
+          pendingExternalWindowRef.current = null;
+          return;
+        }
+
+        window.open(
+          url,
+          "_blank",
+          "noopener,noreferrer"
+        );
+      },
+      [closePendingExternalWindow]
+    );
 
   const stopRecognition = useCallback(() => {
-    const recognition = recognitionRef.current;
+    const recognition =
+      recognitionRef.current;
 
     if (!recognition) {
       return;
@@ -266,7 +300,8 @@ function Home() {
   }, []);
 
   const startRecognition = useCallback(() => {
-    const recognition = recognitionRef.current;
+    const recognition =
+      recognitionRef.current;
 
     if (!recognition) {
       return;
@@ -311,7 +346,7 @@ function Home() {
       }
 
       const cleanText = String(text)
-        .replace(/[\*\_#\`]/g, "")
+        .replace(/[\*\_\#\`]/g, "")
         .replace(/\s+/g, " ")
         .trim();
 
@@ -326,17 +361,20 @@ function Home() {
       stopRecognition();
 
       const utterance =
-        new SpeechSynthesisUtterance(cleanText);
+        new SpeechSynthesisUtterance(
+          cleanText
+        );
 
       const voice = getBestVoice();
 
       if (voice) {
         utterance.voice = voice;
+        utterance.lang = voice.lang;
       }
 
-      utterance.rate = 0.88;
-      utterance.pitch = 1.2;
-      utterance.volume = 0.95;
+      utterance.rate = 1.02;
+      utterance.pitch = 1.12;
+      utterance.volume = 1;
 
       utterance.onstart = () => {
         isSpeakingRef.current = true;
@@ -354,7 +392,7 @@ function Home() {
         ) {
           setTimeout(() => {
             startRecognition();
-          }, 400);
+          }, 300);
         }
       };
 
@@ -369,11 +407,13 @@ function Home() {
         ) {
           setTimeout(() => {
             startRecognition();
-          }, 400);
+          }, 300);
         }
       };
 
-      window.speechSynthesis.speak(utterance);
+      window.speechSynthesis.speak(
+        utterance
+      );
     },
     [
       getBestVoice,
@@ -405,22 +445,26 @@ function Home() {
     }
   }, [isMuted, startRecognition]);
 
-  const sendYouTubeCommand = useCallback((command) => {
-    const iframe = youtubeIframeRef.current;
+  const sendYouTubeCommand = useCallback(
+    (command) => {
+      const iframe =
+        youtubeIframeRef.current;
 
-    if (!iframe) {
-      return;
-    }
+      if (!iframe) {
+        return;
+      }
 
-    iframe.contentWindow?.postMessage(
-      JSON.stringify({
-        event: "command",
-        func: command,
-        args: [],
-      }),
-      "*"
-    );
-  }, []);
+      iframe.contentWindow?.postMessage(
+        JSON.stringify({
+          event: "command",
+          func: command,
+          args: [],
+        }),
+        "*"
+      );
+    },
+    []
+  );
 
   const pauseYouTube = useCallback(() => {
     if (!youtubeVideo) {
@@ -458,184 +502,214 @@ function Home() {
     return true;
   }, [sendYouTubeCommand, youtubeVideo]);
 
-  const openYouTube = useCallback((data) => {
-    if (!data?.videoId) {
-      return;
-    }
-
-    setYoutubeVideo(data.videoId);
-    setYoutubeTitle(data.title || "YouTube Video");
-    setYoutubePlaying(true);
-  }, []);
-
-  const handleLocalYouTubeCommand = useCallback(
-    (command) => {
-      const text = String(command)
-        .toLowerCase()
-        .replace(/[.,!?]/g, "")
-        .trim();
-
-      const closeCommand =
-        /\b(close|hide|remove|dismiss|exit|stop)\b/.test(
-          text
-        ) &&
-        /\b(youtube|video|player)\b/.test(text);
-
-      if (closeCommand && youtubeVideo) {
-        closeYouTube();
-
-        return {
-          handled: true,
-          response: "Closing YouTube.",
-        };
-      }
-
-      const pauseCommand =
-        /\b(pause|hold)\b/.test(text) &&
-        (/\b(youtube|video|music|song)\b/.test(text) ||
-          text === "pause");
-
-      if (pauseCommand && youtubeVideo) {
-        pauseYouTube();
-
-        return {
-          handled: true,
-          response: "Paused.",
-        };
-      }
-
-      const resumeCommand =
-        /\b(resume|continue|unpause|play)\b/.test(text) &&
-        (/\b(youtube|video|music|song)\b/.test(text) ||
-          text === "resume" ||
-          text === "play");
-
-      if (resumeCommand && youtubeVideo) {
-        resumeYouTube();
-
-        return {
-          handled: true,
-          response: "Resuming.",
-        };
-      }
-
-      return {
-        handled: false,
-      };
-    },
-    [
-      closeYouTube,
-      pauseYouTube,
-      resumeYouTube,
-      youtubeVideo,
-    ]
-  );
-
-  const processAssistantResponse = useCallback(
+  const openYouTube = useCallback(
     (data) => {
-      if (!data) {
+      if (!data?.videoId) {
         return;
       }
 
-      const response =
-        data.response ||
-        "I'm here. How can I help?";
-
-      if (data.type === "image_search") {
-        setImages(
-          Array.isArray(data.images)
-            ? data.images
-            : []
-        );
-
-        setShowImages(true);
-        setShowList(false);
-      }
-
-      if (data.type === "close_images") {
-        setShowImages(false);
-        setImages([]);
-      }
-
-      if (data.type === "list_results") {
-        setListItems(
-          Array.isArray(data.items)
-            ? data.items
-            : []
-        );
-
-        setListTitle(data.title || "Results");
-        setShowList(true);
-        setShowImages(false);
-      }
-
-      if (data.type === "close_list") {
-        setShowList(false);
-        setListItems([]);
-        setListTitle("");
-      }
-
-      if (data.type === "youtube_play") {
-        openYouTube(data);
-        setShowImages(false);
-        setShowList(false);
-      }
-
-      if (data.type === "youtube_pause") {
-        pauseYouTube();
-      }
-
-      if (data.type === "youtube_resume") {
-        resumeYouTube();
-      }
-
-      if (data.type === "youtube_close") {
-        closeYouTube();
-      }
-
-      if (
-        data.type === "youtube_search" ||
-        data.type === "google_search" ||
-        data.type === "weather_show" ||
-        data.type === "calculator_open" ||
-        data.type === "instagram_open" ||
-        data.type === "facebook_open"
-      ) {
-        openPendingExternalWindow(data.url);
-      }
-
-      if (
-        pendingExternalWindowRef.current &&
-        ![
-          "youtube_search",
-          "google_search",
-          "weather_show",
-          "calculator_open",
-          "instagram_open",
-          "facebook_open",
-        ].includes(data.type)
-      ) {
-        closePendingExternalWindow();
-      }
-
-      setMessages((prev) => [
-        ...prev,
-        {
-          role: "assistant",
-          text: response,
-        },
-      ]);
-
-      speak(response);
+      setYoutubeVideo(data.videoId);
+      setYoutubeTitle(
+        data.title || "YouTube Video"
+      );
+      setYoutubePlaying(true);
     },
-    [
-      closeYouTube,
-      openYouTube,
-      pauseYouTube,
-      resumeYouTube,
-      speak,
-    ]
+    []
   );
+
+  const handleLocalYouTubeCommand =
+    useCallback(
+      (command) => {
+        const text = String(command)
+          .toLowerCase()
+          .replace(/[.,!?]/g, "")
+          .trim();
+
+        const closeCommand =
+          /\b(close|hide|remove|dismiss|exit|stop)\b/.test(
+            text
+          ) &&
+          /\b(youtube|video|player)\b/.test(
+            text
+          );
+
+        if (
+          closeCommand &&
+          youtubeVideo
+        ) {
+          closeYouTube();
+
+          return {
+            handled: true,
+            response: "Closing YouTube.",
+          };
+        }
+
+        const pauseCommand =
+          /\b(pause|hold)\b/.test(text) &&
+          (/\b(youtube|video|music|song)\b/.test(
+            text
+          ) || text === "pause");
+
+        if (
+          pauseCommand &&
+          youtubeVideo
+        ) {
+          pauseYouTube();
+
+          return {
+            handled: true,
+            response: "Paused.",
+          };
+        }
+
+        const resumeCommand =
+          /\b(resume|continue|unpause|play)\b/.test(
+            text
+          ) &&
+          (/\b(youtube|video|music|song)\b/.test(
+            text
+          ) ||
+            text === "resume" ||
+            text === "play");
+
+        if (
+          resumeCommand &&
+          youtubeVideo
+        ) {
+          resumeYouTube();
+
+          return {
+            handled: true,
+            response: "Resuming.",
+          };
+        }
+
+        return {
+          handled: false,
+        };
+      },
+      [
+        closeYouTube,
+        pauseYouTube,
+        resumeYouTube,
+        youtubeVideo,
+      ]
+    );
+
+  const processAssistantResponse =
+    useCallback(
+      (data) => {
+        if (!data) {
+          return;
+        }
+
+        const response =
+          data.response ||
+          "I'm here. How can I help?";
+
+        if (data.type === "image_search") {
+          setImages(
+            Array.isArray(data.images)
+              ? data.images
+              : []
+          );
+
+          setShowImages(true);
+          setShowList(false);
+        }
+
+        if (data.type === "close_images") {
+          setShowImages(false);
+          setImages([]);
+        }
+
+        if (data.type === "list_results") {
+          setListItems(
+            Array.isArray(data.items)
+              ? data.items
+              : []
+          );
+
+          setListTitle(
+            data.title || "Results"
+          );
+
+          setShowList(true);
+          setShowImages(false);
+        }
+
+        if (data.type === "close_list") {
+          setShowList(false);
+          setListItems([]);
+          setListTitle("");
+        }
+
+        if (data.type === "youtube_play") {
+          openYouTube(data);
+          setShowImages(false);
+          setShowList(false);
+        }
+
+        if (data.type === "youtube_pause") {
+          pauseYouTube();
+        }
+
+        if (data.type === "youtube_resume") {
+          resumeYouTube();
+        }
+
+        if (data.type === "youtube_close") {
+          closeYouTube();
+        }
+
+        if (
+          data.type === "youtube_search" ||
+          data.type === "google_search" ||
+          data.type === "weather_show" ||
+          data.type === "calculator_open" ||
+          data.type === "instagram_open" ||
+          data.type === "facebook_open"
+        ) {
+          openPendingExternalWindow(
+            data.url
+          );
+        }
+
+        if (
+          pendingExternalWindowRef.current &&
+          ![
+            "youtube_search",
+            "google_search",
+            "weather_show",
+            "calculator_open",
+            "instagram_open",
+            "facebook_open",
+          ].includes(data.type)
+        ) {
+          closePendingExternalWindow();
+        }
+
+        setMessages((prev) => [
+          ...prev,
+          {
+            role: "assistant",
+            text: response,
+          },
+        ]);
+
+        speak(response);
+      },
+      [
+        closePendingExternalWindow,
+        closeYouTube,
+        openPendingExternalWindow,
+        openYouTube,
+        pauseYouTube,
+        resumeYouTube,
+        speak,
+      ]
+    );
 
   const sendCommand = useCallback(
     async (commandText) => {
@@ -655,7 +729,9 @@ function Home() {
       }
 
       const localResult =
-        handleLocalYouTubeCommand(command);
+        handleLocalYouTubeCommand(
+          command
+        );
 
       if (localResult.handled) {
         setMessages((prev) => [
@@ -701,9 +777,10 @@ function Home() {
             withCredentials: true,
           }
         );
-        console.log("ASSISTANT RESPONSE:", response.data);
-        processAssistantResponse(response.data);
-        
+
+        processAssistantResponse(
+          response.data
+        );
       } catch (error) {
         console.error(
           "Assistant request error:",
@@ -768,7 +845,8 @@ function Home() {
       return;
     }
 
-    const recognition = new SpeechRecognition();
+    const recognition =
+      new SpeechRecognition();
 
     recognition.continuous = true;
     recognition.interimResults = false;
@@ -813,13 +891,18 @@ function Home() {
       if (
         transcript.toLowerCase() ===
           lastTranscriptRef.current.toLowerCase() &&
-        now - lastTranscriptTimeRef.current < 1800
+        now -
+          lastTranscriptTimeRef.current <
+          1800
       ) {
         return;
       }
 
-      lastTranscriptRef.current = transcript;
-      lastTranscriptTimeRef.current = now;
+      lastTranscriptRef.current =
+        transcript;
+
+      lastTranscriptTimeRef.current =
+        now;
 
       setInput(transcript);
 
@@ -840,7 +923,8 @@ function Home() {
 
       if (
         event.error === "not-allowed" ||
-        event.error === "service-not-allowed"
+        event.error ===
+          "service-not-allowed"
       ) {
         shouldListenRef.current = false;
         return;
@@ -878,11 +962,15 @@ function Home() {
       }
 
       if (manualMicChangeRef.current) {
-        manualMicChangeRef.current = false;
+        manualMicChangeRef.current =
+          false;
+
         return;
       }
 
-      if (!restartingRecognitionRef.current) {
+      if (
+        !restartingRecognitionRef.current
+      ) {
         setTimeout(() => {
           if (
             shouldListenRef.current &&
@@ -896,7 +984,9 @@ function Home() {
       }
     };
 
-    recognitionRef.current = recognition;
+    recognitionRef.current =
+      recognition;
+
     shouldListenRef.current = true;
 
     setTimeout(() => {
@@ -917,103 +1007,113 @@ function Home() {
     };
   }, [sendCommand, startRecognition]);
 
-  const toggleMicrophone = useCallback(() => {
-    const recognition = recognitionRef.current;
+  const toggleMicrophone =
+    useCallback(() => {
+      const recognition =
+        recognitionRef.current;
 
-    if (
-      !recognition ||
-      isLoggingOutRef.current
-    ) {
-      return;
-    }
+      if (
+        !recognition ||
+        isLoggingOutRef.current
+      ) {
+        return;
+      }
 
-    if (shouldListenRef.current) {
-      manualMicChangeRef.current = true;
+      if (shouldListenRef.current) {
+        manualMicChangeRef.current =
+          true;
+
+        shouldListenRef.current = false;
+        recognitionRunningRef.current =
+          false;
+
+        try {
+          recognition.abort();
+        } catch {}
+
+        setIsListening(false);
+
+        return;
+      }
+
+      manualMicChangeRef.current = false;
+      shouldListenRef.current = true;
+
+      startRecognition();
+    }, [startRecognition]);
+
+  const handleLogout = useCallback(
+    async () => {
+      if (isLoggingOutRef.current) {
+        return;
+      }
+
+      isLoggingOutRef.current = true;
+      setIsLoggingOut(true);
+
       shouldListenRef.current = false;
       recognitionRunningRef.current = false;
+      restartingRecognitionRef.current =
+        false;
 
-      try {
-        recognition.abort();
-      } catch {}
+      manualMicChangeRef.current = true;
+
+      if (recognitionRef.current) {
+        try {
+          recognitionRef.current.abort();
+        } catch {}
+      }
 
       setIsListening(false);
 
-      return;
-    }
+      if (
+        typeof window !== "undefined" &&
+        window.speechSynthesis
+      ) {
+        window.speechSynthesis.cancel();
+      }
 
-    manualMicChangeRef.current = false;
-    shouldListenRef.current = true;
+      isSpeakingRef.current = false;
+      setIsSpeaking(false);
 
-    startRecognition();
-  }, [startRecognition]);
+      if (youtubeIframeRef.current) {
+        try {
+          youtubeIframeRef.current.contentWindow?.postMessage(
+            JSON.stringify({
+              event: "command",
+              func: "stopVideo",
+              args: [],
+            }),
+            "*"
+          );
+        } catch {}
+      }
 
-  const handleLogout = useCallback(async () => {
-    if (isLoggingOutRef.current) {
-      return;
-    }
-
-    isLoggingOutRef.current = true;
-    setIsLoggingOut(true);
-
-    shouldListenRef.current = false;
-    recognitionRunningRef.current = false;
-    restartingRecognitionRef.current = false;
-    manualMicChangeRef.current = true;
-
-    if (recognitionRef.current) {
-      try {
-        recognitionRef.current.abort();
-      } catch {}
-    }
-
-    setIsListening(false);
-
-    if (
-      typeof window !== "undefined" &&
-      window.speechSynthesis
-    ) {
-      window.speechSynthesis.cancel();
-    }
-
-    isSpeakingRef.current = false;
-    setIsSpeaking(false);
-
-    if (youtubeIframeRef.current) {
-      try {
-        youtubeIframeRef.current.contentWindow?.postMessage(
-          JSON.stringify({
-            event: "command",
-            func: "stopVideo",
-            args: [],
-          }),
-          "*"
-        );
-      } catch {}
-    }
-
-    setUserData(null);
-
-    try {
-      await axios.get(
-        `${serverUrl}/api/user/logout`,
-        {
-          withCredentials: true,
-          timeout: 5000,
-        }
-      );
-    } catch (error) {
-      console.warn(
-        "Backend logout request failed, continuing logout:",
-        error
-      );
-    } finally {
       setUserData(null);
 
-      navigate("/signin", {
-        replace: true,
-      });
-    }
-  }, [navigate, serverUrl, setUserData]);
+      try {
+        await axios.get(
+          `${serverUrl}/api/user/logout`,
+          {
+            withCredentials: true,
+            timeout: 5000,
+          }
+        );
+      } catch (error) {
+        console.warn(
+          "Backend logout request failed:",
+          error
+        );
+      } finally {
+        setUserData(null);
+
+        navigate("/signin", {
+          replace: true,
+        });
+      }
+    },
+    [navigate, serverUrl, setUserData]
+  );
 
   const openImage = (image) => {
     if (image?.contextLink) {
@@ -1081,7 +1181,9 @@ function Home() {
             />
           ) : (
             <div className="w-12 h-12 rounded-full bg-cyan-500 flex items-center justify-center font-bold text-xl">
-              {assistantName.charAt(0).toUpperCase()}
+              {assistantName
+                .charAt(0)
+                .toUpperCase()}
             </div>
           )}
 
@@ -1107,7 +1209,11 @@ function Home() {
             }}
             disabled={isLoggingOut}
             className="p-3 rounded-full bg-white/10 hover:bg-white/20 transition disabled:opacity-50"
-            title={isMuted ? "Enable voice" : "Mute voice"}
+            title={
+              isMuted
+                ? "Enable voice"
+                : "Mute voice"
+            }
           >
             {isMuted ? (
               <IoVolumeMute size={21} />
@@ -1139,7 +1245,7 @@ function Home() {
                     : isLoading
                     ? "border-purple-400/80 scale-105 animate-pulse"
                     : isSpeaking
-                    ? "border-orange-400/90 scale-115 animate-pulse"
+                    ? "border-orange-400/90 scale-[1.15] animate-pulse"
                     : "border-green-400/50 scale-100"
                 }`}
               />
@@ -1194,7 +1300,9 @@ function Home() {
                       : "scale-100 shadow-[0_0_30px_rgba(34,197,94,0.3)]"
                   }`}
                 >
-                  {assistantName.charAt(0).toUpperCase()}
+                  {assistantName
+                    .charAt(0)
+                    .toUpperCase()}
                 </div>
               )}
             </div>

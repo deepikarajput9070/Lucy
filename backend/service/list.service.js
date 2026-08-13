@@ -1,9 +1,4 @@
 import generateResponse from "../groq.js";
-
-// ============================================================
-// SERPER WEB SEARCH
-// ============================================================
-
 const searchWeb = async (
   query
 ) => {
@@ -67,11 +62,6 @@ const searchWeb = async (
     return [];
   }
 };
-
-// ============================================================
-// SERPER IMAGE SEARCH
-// ============================================================
-
 const searchImages = async (
   query
 ) => {
@@ -136,11 +126,6 @@ const searchImages = async (
     return [];
   }
 };
-
-// ============================================================
-// GET FIRST IMAGE
-// ============================================================
-
 const getItemImage = async (
   item
 ) => {
@@ -195,11 +180,6 @@ const getItemImage = async (
       "",
   };
 };
-
-// ============================================================
-// JSON PARSER
-// ============================================================
-
 const extractJson = (
   result
 ) => {
@@ -240,11 +220,6 @@ const extractJson = (
     }
   }
 };
-
-// ============================================================
-// LIST REQUEST DETECTION
-// ============================================================
-
 export const isListCommand = (
   command = ""
 ) => {
@@ -276,11 +251,6 @@ export const isListCommand = (
     hasNumber
   );
 };
-
-// ============================================================
-// GENERATE LIST
-// ============================================================
-
 export const generateList =
   async ({
     command,
@@ -288,11 +258,6 @@ export const generateList =
     userName,
     userId,
   }) => {
-
-    // ========================================================
-    // WEB SEARCH
-    // ========================================================
-
     const webResults =
       await searchWeb(
         command
@@ -315,11 +280,6 @@ export const generateList =
             }`
         )
         .join("\n");
-
-    // ========================================================
-    // PROMPT
-    // ========================================================
-
     const prompt = `
 You are generating a useful numbered list for a voice assistant.
 
@@ -369,11 +329,6 @@ JSON format:
   "response": "I found the list for you."
 }
 `;
-
-    // ========================================================
-    // GROQ
-    // ========================================================
-
     const result =
       await generateResponse(
         prompt,
@@ -397,11 +352,6 @@ JSON format:
         "Could not generate a valid list"
       );
     }
-
-    // ========================================================
-    // BASIC ITEMS
-    // ========================================================
-
     const basicItems =
       parsed.items
         .slice(0, 20)
@@ -427,11 +377,6 @@ JSON format:
               "",
           })
         );
-
-    // ========================================================
-    // GET IMAGES
-    // ========================================================
-
     const itemsWithImages =
       await Promise.all(
         basicItems.map(
@@ -459,11 +404,6 @@ JSON format:
           }
         )
       );
-
-    // ========================================================
-    // RETURN
-    // ========================================================
-
     return {
       title:
         parsed.title ||
@@ -477,11 +417,6 @@ JSON format:
         `I found ${itemsWithImages.length} items for you.`,
     };
   };
-
-// ============================================================
-// SELECT LIST ITEM
-// ============================================================
-
 export const selectListItem =
   ({
     command,
@@ -516,11 +451,6 @@ export const selectListItem =
         .trim();
 
     let number = null;
-
-    // ========================================================
-    // NUMBER
-    // ========================================================
-
     const numberMatch =
       text.match(
         /\b(?:item|number|no|#)?\s*(\d{1,2})\b/i
@@ -532,11 +462,6 @@ export const selectListItem =
           numberMatch[1]
         );
     }
-
-    // ========================================================
-    // ORDINAL
-    // ========================================================
-
     if (!number) {
       const ordinalWords = {
         first: 1,
@@ -582,11 +507,6 @@ export const selectListItem =
         }
       }
     }
-
-    // ========================================================
-    // CARDINAL
-    // ========================================================
-
     if (!number) {
       const numberWords = {
         one: 1,
@@ -622,11 +542,6 @@ export const selectListItem =
         }
       }
     }
-
-    // ========================================================
-    // ORDINAL NUMBER
-    // ========================================================
-
     if (!number) {
       const ordinalMatch =
         text.match(
@@ -640,11 +555,6 @@ export const selectListItem =
           );
       }
     }
-
-    // ========================================================
-    // NO NUMBER
-    // ========================================================
-
     if (!number) {
       return {
         success: false,
@@ -653,11 +563,6 @@ export const selectListItem =
           "I couldn't determine which item you meant.",
       };
     }
-
-    // ========================================================
-    // GET ITEM
-    // ========================================================
-
     const item =
       listItems[
         number - 1
@@ -671,11 +576,6 @@ export const selectListItem =
           `There is no item ${number} in the current list.`,
       };
     }
-
-    // ========================================================
-    // ACTION
-    // ========================================================
-
     let action = null;
 
     if (
@@ -701,11 +601,6 @@ export const selectListItem =
       item,
     };
   };
-
-// ============================================================
-// CLEAN LIST COMMAND
-// ============================================================
-
 export const cleanListCommand = (
   command = ""
 ) => {

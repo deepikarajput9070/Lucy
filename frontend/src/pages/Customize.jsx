@@ -6,12 +6,12 @@ import { IoMdArrowRoundBack } from "react-icons/io";
 import Card from "../components/Card";
 import { userDataContext } from "../context/UserContext";
 
-import img1 from "../assets/img.jpg";
-import img2 from "../assets/img1.jpg";
-import img3 from "../assets/img2.jpg";
-import img4 from "../assets/img3.jpg";
-import img5 from "../assets/img4.jpg";
-import img6 from "../assets/img5.jpg";
+import img1 from "../assets/anime1.jpg";
+import img2 from "../assets/a1.jpg";
+import img3 from "../assets/a2.jpg";
+import img4 from "../assets/a3.jpg";
+import img5 from "../assets/a4.jpg";
+import img6 from "../assets/anime6.jpg";
 
 function Customize() {
   const cards = [
@@ -33,7 +33,6 @@ function Customize() {
     setBackendImage,
   } = useContext(userDataContext);
 
-  // Only preview image is local
   const [frontImage, setFrontImage] = useState(null);
 
   const handleImage = (e) => {
@@ -47,17 +46,26 @@ function Customize() {
       setSelectedImage(preview);
     }
   };
+
   const handleNext = () => {
+    navigate("/customize2");
+  };
 
-  navigate("/customize2");
-};
-
+  const handleBack = () => {
+    if (window.history.length > 1) {
+      navigate(-1);
+    } else {
+      navigate("/signup");
+    }
+  };
 
   return (
-    <div className="w-full min-h-screen bg-gradient-to-t from-black to-[#060666] flex flex-col items-center py-10">
-      <IoMdArrowRoundBack className='absolute top-[30px] left-[30px] text-white w-[25px] h-[25px]'
-            onClick={() => navigate("/")}
-            />
+    <div className="w-full min-h-screen bg-gradient-to-t from-black to-[#060666] flex flex-col items-center py-10 pb-32">
+      <IoMdArrowRoundBack
+        className="absolute top-[30px] left-[30px] text-white w-[25px] h-[25px] cursor-pointer hover:text-blue-400 transition-colors duration-300"
+        onClick={handleBack}
+      />
+
       <h1 className="text-white text-4xl font-bold text-center mb-10">
         Select your
         <br />
@@ -75,7 +83,7 @@ function Customize() {
             className={`rounded-2xl cursor-pointer transition-all duration-300 ${
               selectedImage === card.image
                 ? "border-4 border-blue-500 scale-105 shadow-[0_0_25px_rgba(59,130,246,0.8)]"
-                : "border-4 border-transparent"
+                : "border-4 border-transparent hover:scale-105 hover:shadow-[0_0_20px_rgba(59,130,246,0.35)]"
             }`}
           >
             <Card image={card.image} title={card.title} />
@@ -87,7 +95,7 @@ function Customize() {
           className={`w-[180px] h-[250px] rounded-2xl flex items-center justify-center cursor-pointer overflow-hidden transition-all duration-300 bg-[#060666] hover:scale-105 ${
             selectedImage === frontImage
               ? "border-4 border-blue-500 shadow-[0_0_25px_rgba(59,130,246,0.8)]"
-              : "border-2 border-blue-500"
+              : "border-2 border-blue-500 hover:shadow-[0_0_20px_rgba(59,130,246,0.35)]"
           }`}
         >
           {frontImage ? (
@@ -99,7 +107,9 @@ function Customize() {
           ) : (
             <div className="flex flex-col items-center">
               <MdUploadFile className="text-white text-6xl" />
-              <p className="text-white mt-3 text-sm">Upload Image</p>
+              <p className="text-white mt-3 text-sm">
+                Upload Image
+              </p>
             </div>
           )}
 
@@ -114,12 +124,14 @@ function Customize() {
       </div>
 
       {selectedImage && (
-        <button
-          onClick={handleNext}
-          className="mt-12 px-12 py-3 bg-blue-500 hover:bg-blue-600 rounded-full text-white text-lg font-semibold transition-all duration-300 hover:scale-105"
-        >
-          Next
-        </button>
+        <div className="fixed bottom-6 left-0 right-0 z-50 flex justify-center px-5 pointer-events-none">
+          <button
+            onClick={handleNext}
+            className="pointer-events-auto px-16 py-3.5 bg-blue-500 hover:bg-blue-600 rounded-full text-white text-lg font-semibold transition-all duration-300 hover:scale-105 shadow-[0_0_25px_rgba(59,130,246,0.45)]"
+          >
+            Next
+          </button>
+        </div>
       )}
     </div>
   );

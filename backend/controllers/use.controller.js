@@ -28,11 +28,6 @@ import {
 } from "../service/youtube.service.js";
 
 dotenv.config();
-
-// ============================================================
-// CURRENT USER
-// ============================================================
-
 export const getCurrentUser = async (req, res) => {
   try {
     const user = await User.findById(req.userId).select("-password");
@@ -55,11 +50,6 @@ export const getCurrentUser = async (req, res) => {
     });
   }
 };
-
-// ============================================================
-// UPDATE ASSISTANT
-// ============================================================
-
 export const updateAssistant = async (req, res) => {
   try {
     const {
@@ -106,11 +96,6 @@ export const updateAssistant = async (req, res) => {
     });
   }
 };
-
-// ============================================================
-// NORMALIZE TEXT
-// ============================================================
-
 const normalizeText = (text = "") => {
   return String(text)
     .toLowerCase()
@@ -118,11 +103,6 @@ const normalizeText = (text = "") => {
     .replace(/\s+/g, " ")
     .trim();
 };
-
-// ============================================================
-// CLEAN ASSISTANT NAME
-// ============================================================
-
 const cleanAssistantName = (
   text = "",
   assistantName = ""
@@ -148,11 +128,6 @@ const cleanAssistantName = (
 
   return normalized;
 };
-
-// ============================================================
-// IMAGE QUERY CLEANER
-// ============================================================
-
 const cleanImageQuery = (text = "") => {
   let query = String(text).trim();
 
@@ -178,11 +153,6 @@ const cleanImageQuery = (text = "") => {
 
   return query.trim() || text.trim();
 };
-
-// ============================================================
-// IMAGE SEARCH COMMAND
-// ============================================================
-
 const isImageSearchCommand = (command = "") => {
   const normalized = normalizeText(command);
 
@@ -198,11 +168,6 @@ const isImageSearchCommand = (command = "") => {
 
   return hasImageWord && hasSearchWord;
 };
-
-// ============================================================
-// CLOSE IMAGE COMMAND
-// ============================================================
-
 const isCloseImagesCommand = (command = "") => {
   const normalized = normalizeText(command);
 
@@ -213,11 +178,6 @@ const isCloseImagesCommand = (command = "") => {
     )
   );
 };
-
-// ============================================================
-// CLOSE LIST COMMAND
-// ============================================================
-
 const isCloseListCommand = (command = "") => {
   const normalized = normalizeText(command);
 
@@ -226,11 +186,6 @@ const isCloseListCommand = (command = "") => {
     /\b(list|results)\b/i.test(normalized)
   );
 };
-
-// ============================================================
-// YOUTUBE CLOSE COMMAND
-// ============================================================
-
 const isYouTubeCloseCommand = (command = "") => {
   const normalized = normalizeText(command);
 
@@ -246,11 +201,6 @@ const isYouTubeCloseCommand = (command = "") => {
 
   return closeWord && youtubeWord;
 };
-
-// ============================================================
-// YOUTUBE PAUSE COMMAND
-// ============================================================
-
 const isYouTubePauseCommand = (command = "") => {
   const normalized = normalizeText(command);
 
@@ -266,11 +216,6 @@ const isYouTubePauseCommand = (command = "") => {
 
   return pauseWord && youtubeWord;
 };
-
-// ============================================================
-// YOUTUBE RESUME COMMAND
-// ============================================================
-
 const isYouTubeResumeCommand = (command = "") => {
   const normalized = normalizeText(command);
 
@@ -286,11 +231,6 @@ const isYouTubeResumeCommand = (command = "") => {
 
   return resumeWord && youtubeWord;
 };
-
-// ============================================================
-// YOUTUBE PLAY COMMAND
-// ============================================================
-
 const isYouTubePlayCommand = (command = "") => {
   const normalized = normalizeText(command);
 
@@ -303,11 +243,6 @@ const isYouTubePlayCommand = (command = "") => {
     )
   );
 };
-
-// ============================================================
-// YOUTUBE SEARCH COMMAND
-// ============================================================
-
 const isYouTubeSearchCommand = (command = "") => {
   const normalized = normalizeText(command);
 
@@ -318,11 +253,6 @@ const isYouTubeSearchCommand = (command = "") => {
     )
   );
 };
-
-// ============================================================
-// CLEAN YOUTUBE QUERY
-// ============================================================
-
 const cleanYouTubeQuery = (command = "") => {
   let query = String(command).trim();
 
@@ -343,11 +273,6 @@ const cleanYouTubeQuery = (command = "") => {
 
   return query;
 };
-
-// ============================================================
-// SERPER IMAGE SEARCH
-// ============================================================
-
 const searchImagesWithSerper = async (query) => {
   const apiKey = process.env.SERPER_API_KEY;
 
@@ -432,33 +357,18 @@ const searchImagesWithSerper = async (query) => {
         image.link
     );
 };
-
-// ============================================================
-// GOOGLE SEARCH URL
-// ============================================================
-
 const createGoogleSearchUrl = (query) => {
   return (
     "https://www.google.com/search?q=" +
     encodeURIComponent(query)
   );
 };
-
-// ============================================================
-// YOUTUBE SEARCH URL
-// ============================================================
-
 const createYouTubeSearchUrl = (query) => {
   return (
     "https://www.youtube.com/results?search_query=" +
     encodeURIComponent(query)
   );
 };
-
-// ============================================================
-// SAVE CONVERSATION
-// ============================================================
-
 const saveConversation = async (
   userId,
   userMessage,
@@ -497,11 +407,6 @@ const saveConversation = async (
     );
   }
 };
-
-// ============================================================
-// MAIN ASSISTANT
-// ============================================================
-
 export const askToAssistant = async (
   req,
   res
@@ -512,10 +417,6 @@ export const askToAssistant = async (
       : "";
 
   try {
-    // ========================================================
-    // EMPTY COMMAND
-    // ========================================================
-
     if (!cleanCommand) {
       return res.status(400).json({
         type: "general",
@@ -525,11 +426,6 @@ export const askToAssistant = async (
         response: "Please say something.",
       });
     }
-
-    // ========================================================
-    // USER
-    // ========================================================
-
     const user = await User.findById(
       req.userId
     );
@@ -543,11 +439,6 @@ export const askToAssistant = async (
         response: "User not found.",
       });
     }
-
-    // ========================================================
-    // ASSISTANT INFORMATION
-    // ========================================================
-
     const assistantName =
       user.assistantName ||
       "Lucy";
@@ -555,32 +446,17 @@ export const askToAssistant = async (
     const userName =
       user.name ||
       "User";
-
-    // ========================================================
-    // HISTORY
-    // ========================================================
-
     const previousHistory =
       Array.isArray(
         user.conversationHistory
       )
         ? user.conversationHistory.slice(-8)
         : [];
-
-    // ========================================================
-    // CLEAN COMMAND
-    // ========================================================
-
     const command =
       cleanAssistantName(
         cleanCommand,
         assistantName
       );
-
-    // ========================================================
-    // CLOSE YOUTUBE
-    // ========================================================
-
     if (
       isYouTubeCloseCommand(command)
     ) {
@@ -601,11 +477,6 @@ export const askToAssistant = async (
         riskLevel: "none",
       });
     }
-
-    // ========================================================
-    // PAUSE YOUTUBE
-    // ========================================================
-
     if (
       isYouTubePauseCommand(command)
     ) {
@@ -626,11 +497,6 @@ export const askToAssistant = async (
         riskLevel: "none",
       });
     }
-
-    // ========================================================
-    // RESUME YOUTUBE
-    // ========================================================
-
     if (
       isYouTubeResumeCommand(command)
     ) {
@@ -651,11 +517,6 @@ export const askToAssistant = async (
         riskLevel: "none",
       });
     }
-
-    // ========================================================
-    // CLOSE IMAGES
-    // ========================================================
-
     if (
       isCloseImagesCommand(command)
     ) {
@@ -676,11 +537,6 @@ export const askToAssistant = async (
         response,
       });
     }
-
-    // ========================================================
-    // CLOSE LIST
-    // ========================================================
-
     if (
       isCloseListCommand(command)
     ) {
@@ -701,11 +557,6 @@ export const askToAssistant = async (
         response,
       });
     }
-
-    // ========================================================
-    // IMAGE SEARCH
-    // ========================================================
-
     if (
       isImageSearchCommand(command)
     ) {
@@ -756,11 +607,6 @@ export const askToAssistant = async (
         });
       }
     }
-
-    // ========================================================
-    // DIRECT YOUTUBE PLAY
-    // ========================================================
-
     if (
       isYouTubePlayCommand(command)
     ) {
@@ -841,11 +687,6 @@ export const askToAssistant = async (
         }
       }
     }
-
-    // ========================================================
-    // DIRECT YOUTUBE SEARCH
-    // ========================================================
-
     if (
       isYouTubeSearchCommand(command)
     ) {
@@ -874,11 +715,6 @@ export const askToAssistant = async (
         riskLevel: "none",
       });
     }
-
-    // ========================================================
-    // LIST ITEM SELECTION
-    // ========================================================
-
     const isSelectionCommand =
       /\b(play|listen|watch|search|google|find|look up|look for)\b/i.test(
         command
@@ -913,11 +749,6 @@ export const askToAssistant = async (
       }
 
       const item = selection.item;
-
-      // ======================================================
-      // PLAY SELECTED ITEM
-      // ======================================================
-
       if (
         selection.action === "play"
       ) {
@@ -985,11 +816,6 @@ export const askToAssistant = async (
           });
         }
       }
-
-      // ======================================================
-      // SEARCH SELECTED ITEM
-      // ======================================================
-
       if (
         selection.action === "search"
       ) {
@@ -1038,11 +864,6 @@ export const askToAssistant = async (
         response,
       });
     }
-
-    // ========================================================
-    // NEW LIST
-    // ========================================================
-
     if (
       isListCommand(command)
     ) {
@@ -1123,11 +944,6 @@ export const askToAssistant = async (
         });
       }
     }
-
-    // ========================================================
-    // GROQ
-    // ========================================================
-
     let result;
 
     try {
@@ -1154,11 +970,6 @@ export const askToAssistant = async (
           "I'm having trouble processing that command right now. Please try again in a moment.",
       });
     }
-
-    // ========================================================
-    // FALLBACK
-    // ========================================================
-
     if (
       !result ||
       typeof result !== "object"
@@ -1171,11 +982,6 @@ export const askToAssistant = async (
         riskLevel: "none",
       };
     }
-
-    // ========================================================
-    // GOOGLE SEARCH
-    // ========================================================
-
     if (
       result.type ===
       "google_search"
@@ -1211,11 +1017,6 @@ export const askToAssistant = async (
           "neutral",
       });
     }
-
-    // ========================================================
-    // YOUTUBE SEARCH FROM GROQ
-    // ========================================================
-
     if (
       result.type ===
       "youtube_search"
@@ -1253,11 +1054,6 @@ export const askToAssistant = async (
           "neutral",
       });
     }
-
-    // ========================================================
-    // YOUTUBE PLAY FROM GROQ
-    // ========================================================
-
     if (
       result.type ===
       "youtube_play"
@@ -1364,11 +1160,6 @@ export const askToAssistant = async (
         });
       }
     }
-
-    // ========================================================
-    // GENERAL
-    // ========================================================
-
     if (
       result.type === "general"
     ) {
@@ -1394,11 +1185,6 @@ export const askToAssistant = async (
         response,
       });
     }
-
-    // ========================================================
-    // WEATHER
-    // ========================================================
-
     if (
       result.type ===
       "weather_show"
@@ -1429,11 +1215,6 @@ export const askToAssistant = async (
           "neutral",
       });
     }
-
-    // ========================================================
-    // TIME
-    // ========================================================
-
     if (
       result.type ===
       "get_time"
@@ -1460,11 +1241,6 @@ export const askToAssistant = async (
         emotion: "neutral",
       });
     }
-
-    // ========================================================
-    // DATE
-    // ========================================================
-
     if (
       result.type ===
       "get_date"
@@ -1491,11 +1267,6 @@ export const askToAssistant = async (
         emotion: "neutral",
       });
     }
-
-    // ========================================================
-    // DAY
-    // ========================================================
-
     if (
       result.type ===
       "get_day"
@@ -1524,11 +1295,6 @@ export const askToAssistant = async (
         emotion: "neutral",
       });
     }
-
-    // ========================================================
-    // MONTH
-    // ========================================================
-
     if (
       result.type ===
       "get_month"
@@ -1557,11 +1323,6 @@ export const askToAssistant = async (
         emotion: "neutral",
       });
     }
-
-    // ========================================================
-    // CALCULATOR
-    // ========================================================
-
     if (
       result.type ===
       "calculator_open"
@@ -1592,11 +1353,6 @@ export const askToAssistant = async (
           "neutral",
       });
     }
-
-    // ========================================================
-    // INSTAGRAM
-    // ========================================================
-
     if (
       result.type ===
       "instagram_open"
@@ -1623,11 +1379,6 @@ export const askToAssistant = async (
           "neutral",
       });
     }
-
-    // ========================================================
-    // FACEBOOK
-    // ========================================================
-
     if (
       result.type ===
       "facebook_open"
@@ -1654,11 +1405,6 @@ export const askToAssistant = async (
           "neutral",
       });
     }
-
-    // ========================================================
-    // FALLBACK
-    // ========================================================
-
     const response =
       result.response ||
       "Done.";

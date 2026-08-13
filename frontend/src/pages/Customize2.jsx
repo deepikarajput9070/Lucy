@@ -15,6 +15,14 @@ function Customize2() {
 
   const navigate = useNavigate();
 
+  const handleBack = () => {
+    if (window.history.length > 1) {
+      navigate(-1);
+    } else {
+      navigate("/customize");
+    }
+  };
+
   const [assistantName, setAssistantName] = useState(
     userData?.assistantName || "Lucy"
   );
@@ -70,7 +78,7 @@ function Customize2() {
 
       <IoMdArrowRoundBack
         className="absolute top-8 left-8 text-white text-3xl cursor-pointer"
-        onClick={() => navigate("/customize")}
+        onClick={handleBack}
       />
 
       <h1 className="text-white text-4xl font-bold text-center mb-10">

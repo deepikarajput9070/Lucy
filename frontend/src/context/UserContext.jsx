@@ -5,7 +5,7 @@ export const userDataContext = createContext();
 
 function UserContextProvider({ children }) {
   // Backend URL
-  const serverUrl = "http://localhost:8000";
+  const serverUrl = "https://lucy-backend-qirz.onrender.com";
 
   // States
   const [userData, setUserData] = useState(null);

@@ -12,14 +12,24 @@ dotenv.config();
 
 const app = express();
 
+const allowedOrigins = [
+  "http://localhost:5173",
+  "https://lucy-i4jj.onrender.com",
+];
+
 app.use(
   cors({
-    origin:
-      "https://lucy-i4jj.onrender.com",
-
+    origin: (origin, callback) => {
+      if (!origin || allowedOrigins.includes(origin)) {
+        callback(null, true);
+      } else {
+        callback(new Error("Not allowed by CORS"));
+      }
+    },
     credentials: true,
   })
 );
+
 app.use(
   express.json({
     limit: "10mb",
@@ -32,9 +42,7 @@ app.use(
   })
 );
 
-app.use(
-  cookieParser()
-);
+app.use(cookieParser());
 
 app.use(
   "/api/auth",
@@ -45,8 +53,8 @@ app.use(
   "/api/user",
   userRouter
 );
-const port =
-  process.env.PORT || 8000;
+
+const port = process.env.PORT || 8000;
 
 app.listen(
   port,

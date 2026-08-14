@@ -1092,8 +1092,11 @@ function Home() {
       setUserData(null);
 
       try {
-        await axios.get(
+        // IMPORTANT:
+        // Backend route is POST /api/user/logout
+        await axios.post(
           `${serverUrl}/api/user/logout`,
+          {},
           {
             withCredentials: true,
             timeout: 5000,

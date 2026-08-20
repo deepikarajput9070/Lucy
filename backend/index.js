@@ -44,6 +44,15 @@ app.use(
 
 app.use(cookieParser());
 
+
+app.get("/health", (req, res) => {
+  res.status(200).json({
+    status: "ok",
+    message: "Lucy backend is awake",
+  });
+});
+
+
 app.use(
   "/api/auth",
   authRouter
@@ -54,10 +63,12 @@ app.use(
   userRouter
 );
 
+
 const port = process.env.PORT || 8000;
 
 app.listen(
   port,
+  "0.0.0.0",
   async () => {
     await connectDb();
 

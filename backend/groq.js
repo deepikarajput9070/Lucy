@@ -539,16 +539,18 @@ const generateResponse = async (
       originalCommand
     );
   } catch (error) {
-    console.error(
-      "Groq Error:",
-      error?.message || error
-    );
+  console.error("========== GROQ ERROR ==========");
+  console.error("Message:", error?.message);
+  console.error("Status:", error?.status);
+  console.error("Code:", error?.code);
+  console.error("Error:", error);
+  console.error("================================");
 
-    return createFallback(
-      command,
-      "I'm having trouble processing that right now."
-    );
-  }
+  return createFallback(
+    command,
+    "I'm having trouble processing that right now."
+  );
+}
 };
 
 export default generateResponse;
